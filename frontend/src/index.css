@@ -1,0 +1,48 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface-hover: #242835;
+  --border: #2e3343;
+  --text: #e4e6ed;
+  --text-muted: #8b8fa3;
+  --primary: #6c63ff;
+  --primary-hover: #5a52e0;
+  --success: #34d399;
+  --danger: #f87171;
+  --danger-hover: #dc2626;
+  --warning: #fbbf24;
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+  border: none;
+  outline: none;
+}
+
+input,
+select {
+  font-family: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
