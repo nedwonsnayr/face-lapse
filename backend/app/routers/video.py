@@ -2,12 +2,11 @@
 
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
-from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 log = logging.getLogger("face-lapse.video")
@@ -93,25 +92,6 @@ def generate_timelapse(
     }
 
 
-@router.head("/latest")
-@router.get("/latest")
-def get_latest_video():
-    """Return the most recently generated video, or 204 if none exist."""
-    if not VIDEOS_DIR.exists():
-        return Response(status_code=204)
-
-    # Find the most recent mp4 file
-    videos = sorted(VIDEOS_DIR.glob("*.mp4"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not videos:
-        return Response(status_code=204)
-
-    return FileResponse(
-        str(videos[0]),
-        media_type="video/mp4",
-        filename=f"face-lapse-{date.today().strftime('%m-%d-%Y')}.mp4",
-    )
-
-
 @router.get("/{filename}")
 def get_video_by_name(filename: str):
     """Download a specific generated video by filename."""
@@ -119,8 +99,9 @@ def get_video_by_name(filename: str):
     if not video_path.exists():
         raise HTTPException(status_code=404, detail="Video not found")
 
+    download_name = f"face-lapse-{date.today().strftime('%m-%d-%Y')}.mp4"
     return FileResponse(
         str(video_path),
         media_type="video/mp4",
-        filename=filename,
+        filename=download_name,
     )

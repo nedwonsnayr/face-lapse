@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Upload from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
-import VideoPreview from "./components/VideoPreview";
+import Timelapse from "./components/Timelapse";
 import { ImageRecord, listImages, AlignResponse } from "./api";
 
 export default function App() {
@@ -38,9 +38,9 @@ export default function App() {
     setRecentUploadIds(new Set());
   }, []);
 
-  const includedCount = images.filter(
-    (img) => img.included_in_video && img.has_aligned
-  ).length;
+  const includedIds = images
+    .filter((img) => img.included_in_video && img.has_aligned)
+    .map((img) => img.id);
 
   return (
     <div style={styles.app}>
@@ -62,7 +62,7 @@ export default function App() {
               onRefresh={fetchImages}
               onDismissRecent={handleDismissRecent}
             />
-            <VideoPreview imageCount={includedCount} />
+            <Timelapse imageIds={includedIds} />
           </>
         )}
       </main>

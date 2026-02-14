@@ -21,6 +21,18 @@ logging.basicConfig(
 for _name in ("mediapipe", "PIL", "matplotlib"):
     logging.getLogger(_name).setLevel(logging.WARNING)
 
+
+class _QuietAccessFilter(logging.Filter):
+    """Suppress access-log lines for high-frequency image-serving endpoints."""
+    _NOISY = ("/aligned", "/original")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not any(p in msg for p in self._NOISY)
+
+
+logging.getLogger("uvicorn.access").addFilter(_QuietAccessFilter())
+
 log = logging.getLogger("face-lapse")
 
 

@@ -200,15 +200,6 @@ export async function generateVideo(
   return res.json();
 }
 
-export async function checkVideoExists(): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/video/latest`, { method: "HEAD" });
-    return res.status === 200;
-  } catch {
-    return false;
-  }
-}
-
 export function getAlignedImageUrl(id: number): string {
   return `${API_BASE}/images/${id}/aligned`;
 }
@@ -217,6 +208,3 @@ export function getOriginalImageUrl(id: number): string {
   return `${API_BASE}/images/${id}/original`;
 }
 
-export function getLatestVideoUrl(): string {
-  return `${API_BASE}/video/latest`;
-}
