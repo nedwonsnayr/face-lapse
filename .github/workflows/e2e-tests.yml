@@ -26,7 +26,13 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Cache Python dependencies
+        id: cache-python
         uses: actions/cache@v4
         with:
           path: .venv
@@ -35,12 +41,14 @@ jobs:
             ${{ runner.os }}-python-
 
       - name: Install Python dependencies
+        if: steps.cache-python.outputs.cache-hit != 'true'
         run: |
           python3 -m venv .venv
           source .venv/bin/activate
           pip install -r backend/requirements.txt
 
       - name: Cache frontend dependencies
+        id: cache-frontend
         uses: actions/cache@v4
         with:
           path: frontend/node_modules
@@ -49,11 +57,13 @@ jobs:
             ${{ runner.os }}-frontend-
 
       - name: Install frontend dependencies
+        if: steps.cache-frontend.outputs.cache-hit != 'true'
         run: |
           cd frontend
-          npm install
+          npm ci
 
       - name: Cache E2E dependencies
+        id: cache-e2e
         uses: actions/cache@v4
         with:
           path: e2e/node_modules
@@ -62,11 +72,13 @@ jobs:
             ${{ runner.os }}-e2e-
 
       - name: Install E2E dependencies
+        if: steps.cache-e2e.outputs.cache-hit != 'true'
         run: |
           cd e2e
-          npm install
+          npm ci
 
       - name: Cache Playwright browsers
+        id: cache-playwright
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
@@ -75,6 +87,7 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: |
           cd e2e
           npx playwright install chromium --with-deps
