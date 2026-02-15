@@ -31,7 +31,18 @@ class _QuietAccessFilter(logging.Filter):
         return not any(p in msg for p in self._NOISY)
 
 
+class _SuppressContentLengthError(logging.Filter):
+    """Suppress harmless uvicorn Content-Length mismatch errors."""
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        # Suppress the known harmless RuntimeError about Content-Length
+        if "Response content longer than Content-Length" in msg:
+            return False
+        return True
+
+
 logging.getLogger("uvicorn.access").addFilter(_QuietAccessFilter())
+logging.getLogger("uvicorn.error").addFilter(_SuppressContentLengthError())
 
 log = logging.getLogger("face-lapse")
 

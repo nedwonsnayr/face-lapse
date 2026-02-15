@@ -1,11 +1,12 @@
+import os
 import re
 from pathlib import Path
 
 # Base project directory (face-lapse/)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# Data directories
-DATA_DIR = PROJECT_ROOT / "data"
+# Data directories — override with FACE_LAPSE_DATA_DIR env var for test isolation
+DATA_DIR = Path(os.environ["FACE_LAPSE_DATA_DIR"]) if "FACE_LAPSE_DATA_DIR" in os.environ else PROJECT_ROOT / "data"
 ORIGINALS_DIR = DATA_DIR / "originals"
 ALIGNED_DIR = DATA_DIR / "aligned"
 VIDEOS_DIR = DATA_DIR / "videos"
