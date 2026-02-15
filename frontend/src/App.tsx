@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Upload from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
 import Timelapse from "./components/Timelapse";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { ImageRecord, listImages, AlignResponse } from "./api";
 
 export default function App() {
@@ -50,19 +51,25 @@ export default function App() {
       </header>
 
       <main style={styles.main}>
-        <Upload onAlignComplete={handleAlignComplete} />
+        <ErrorBoundary section="Upload">
+          <Upload onAlignComplete={handleAlignComplete} />
+        </ErrorBoundary>
 
         {loading ? (
           <p style={styles.loading}>Loading library...</p>
         ) : (
           <>
-            <ImageLibrary
-              images={images}
-              recentUploadIds={recentUploadIds}
-              onRefresh={fetchImages}
-              onDismissRecent={handleDismissRecent}
-            />
-            <Timelapse imageIds={includedIds} />
+            <ErrorBoundary section="Image Library">
+              <ImageLibrary
+                images={images}
+                recentUploadIds={recentUploadIds}
+                onRefresh={fetchImages}
+                onDismissRecent={handleDismissRecent}
+              />
+            </ErrorBoundary>
+            <ErrorBoundary section="Timelapse">
+              <Timelapse imageIds={includedIds} />
+            </ErrorBoundary>
           </>
         )}
       </main>
