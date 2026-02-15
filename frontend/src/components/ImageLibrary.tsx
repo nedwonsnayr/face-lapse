@@ -1,4 +1,18 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   ImageRecord,
   getAlignedImageUrl,
@@ -7,7 +21,11 @@ import {
   toggleImage,
   reorderImages,
   deleteNoFaceImages,
+  realignImage,
 } from "../api";
+import styles from "./ImageLibrary.styles";
+
+/* ── Props ─────────────────────────────────────────────── */
 
 interface ImageLibraryProps {
   images: ImageRecord[];
@@ -16,103 +34,43 @@ interface ImageLibraryProps {
   onDismissRecent: () => void;
 }
 
-export default function ImageLibrary({
-  images,
-  recentUploadIds,
-  onRefresh,
-  onDismissRecent,
-}: ImageLibraryProps) {
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [previousCollapsed, setPreviousCollapsed] = useState(false);
-  const [recentCollapsed, setRecentCollapsed] = useState(false);
-  const [noFaceCollapsed, setNoFaceCollapsed] = useState(false);
-  const [dismissingNoFace, setDismissingNoFace] = useState(false);
+/* ── Sortable card ─────────────────────────────────────── */
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this image?")) return;
-    setDeletingId(id);
-    try {
-      await deleteImage(id);
-      onRefresh();
-    } catch (err) {
-      console.error("Delete failed:", err);
-    } finally {
-      setDeletingId(null);
-    }
+interface SortableCardProps {
+  img: ImageRecord;
+  deletingId: number | null;
+  realigningId: number | null;
+  onDelete: (id: number) => void;
+  onToggle: (id: number) => void;
+  onRealign: (id: number) => void;
+}
+
+function SortableCard({ img, deletingId, realigningId, onDelete, onToggle, onRealign }: SortableCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: img.id });
+
+  const style: React.CSSProperties = {
+    ...styles.card,
+    ...(img.included_in_video ? {} : styles.cardExcluded),
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : undefined,
+    zIndex: isDragging ? 10 : undefined,
   };
 
-  const handleToggle = async (id: number) => {
-    try {
-      await toggleImage(id);
-      onRefresh();
-    } catch (err) {
-      console.error("Toggle failed:", err);
-    }
-  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {/* Drag handle */}
+      <div {...attributes} {...listeners} style={styles.dragHandle} title="Drag to reorder">
+        ⠿
+      </div>
 
-  const handleMoveInList = async (
-    list: ImageRecord[],
-    idx: number,
-    direction: -1 | 1
-  ) => {
-    const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= list.length) return;
-
-    // Build new sort_order assignments for all images in the full list
-    // We swap the two items and assign sequential sort_order values
-    const reordered = [...list];
-    [reordered[idx], reordered[targetIdx]] = [
-      reordered[targetIdx],
-      reordered[idx],
-    ];
-    const items = reordered.map((img, i) => ({
-      id: img.id,
-      sort_order: i,
-    }));
-
-    try {
-      await reorderImages(items);
-      onRefresh();
-    } catch (err) {
-      console.error("Reorder failed:", err);
-    }
-  };
-
-  const handleDismissNoFace = async () => {
-    if (!confirm("Delete all images where no face was detected?")) return;
-    setDismissingNoFace(true);
-    try {
-      await deleteNoFaceImages();
-      onRefresh();
-    } catch (err) {
-      console.error("Failed to dismiss no-face images:", err);
-    } finally {
-      setDismissingNoFace(false);
-    }
-  };
-
-  // Split into three groups: no-face, recent (with face), previous (with face)
-  const noFaceImages = images.filter((img) => !img.face_detected);
-  const faceImages = images.filter((img) => img.face_detected);
-  const recentImages = faceImages.filter((img) => recentUploadIds.has(img.id));
-  const previousImages = faceImages.filter(
-    (img) => !recentUploadIds.has(img.id)
-  );
-  const alignedCount = images.filter((img) => img.has_aligned).length;
-  const failedCount = noFaceImages.length;
-
-  const renderImageCard = (
-    img: ImageRecord,
-    idx: number,
-    list: ImageRecord[]
-  ) => (
-    <div
-      key={img.id}
-      style={{
-        ...styles.card,
-        ...(img.included_in_video ? {} : styles.cardExcluded),
-      }}
-    >
       {img.has_aligned ? (
         <img
           src={getAlignedImageUrl(img.id)}
@@ -139,51 +97,158 @@ export default function ImageLibrary({
       </div>
 
       <div style={styles.cardActions}>
-        <div style={styles.moveButtons}>
-          <button
-            style={styles.btnMove}
-            onClick={() => handleMoveInList(list, idx, -1)}
-            disabled={idx === 0}
-            title="Move earlier"
-          >
-            &#9664;
-          </button>
-          <button
-            style={styles.btnMove}
-            onClick={() => handleMoveInList(list, idx, 1)}
-            disabled={idx === list.length - 1}
-            title="Move later"
-          >
-            &#9654;
-          </button>
-        </div>
         {img.has_aligned && (
           <button
             style={{
               ...styles.btnSmall,
-              ...(img.included_in_video
-                ? styles.btnIncluded
-                : styles.btnExcluded),
+              ...(img.included_in_video ? styles.btnIncluded : styles.btnExcluded),
             }}
-            onClick={() => handleToggle(img.id)}
-            title={
-              img.included_in_video
-                ? "Click to exclude from video"
-                : "Click to include in video"
-            }
+            onClick={() => onToggle(img.id)}
+            title={img.included_in_video ? "Exclude from video" : "Include in video"}
           >
             {img.included_in_video ? "In" : "Out"}
           </button>
         )}
         <button
+          style={{ ...styles.btnSmall, ...styles.btnRealign }}
+          onClick={() => onRealign(img.id)}
+          disabled={realigningId === img.id}
+          title="Re-run face alignment"
+        >
+          {realigningId === img.id ? "..." : "⟳"}
+        </button>
+        <button
           style={{ ...styles.btnSmall, ...styles.btnDelete }}
-          onClick={() => handleDelete(img.id)}
+          onClick={() => onDelete(img.id)}
           disabled={deletingId === img.id}
         >
           {deletingId === img.id ? "..." : "Del"}
         </button>
       </div>
     </div>
+  );
+}
+
+/* ── Main component ───────────────────────────────────── */
+
+export default function ImageLibrary({
+  images,
+  recentUploadIds,
+  onRefresh,
+  onDismissRecent,
+}: ImageLibraryProps) {
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [realigningId, setRealigningId] = useState<number | null>(null);
+  const [previousCollapsed, setPreviousCollapsed] = useState(false);
+  const [recentCollapsed, setRecentCollapsed] = useState(false);
+  const [noFaceCollapsed, setNoFaceCollapsed] = useState(false);
+  const [dismissingNoFace, setDismissingNoFace] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this image?")) return;
+    setDeletingId(id);
+    try {
+      await deleteImage(id);
+      onRefresh();
+    } catch (err) {
+      console.error("Delete failed:", err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleToggle = async (id: number) => {
+    try {
+      await toggleImage(id);
+      onRefresh();
+    } catch (err) {
+      console.error("Toggle failed:", err);
+    }
+  };
+
+  const handleRealign = async (id: number) => {
+    setRealigningId(id);
+    try {
+      await realignImage(id);
+      onRefresh();
+    } catch (err) {
+      console.error("Re-align failed:", err);
+    } finally {
+      setRealigningId(null);
+    }
+  };
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent, list: ImageRecord[]) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const oldIdx = list.findIndex((img) => img.id === active.id);
+      const newIdx = list.findIndex((img) => img.id === over.id);
+      if (oldIdx === -1 || newIdx === -1) return;
+
+      const reordered = [...list];
+      const [moved] = reordered.splice(oldIdx, 1);
+      reordered.splice(newIdx, 0, moved);
+
+      const items = reordered.map((img, i) => ({ id: img.id, sort_order: i }));
+      try {
+        await reorderImages(items);
+        onRefresh();
+      } catch (err) {
+        console.error("Reorder failed:", err);
+      }
+    },
+    [onRefresh]
+  );
+
+  const handleDismissNoFace = async () => {
+    if (!confirm("Delete all images where no face was detected?")) return;
+    setDismissingNoFace(true);
+    try {
+      await deleteNoFaceImages();
+      onRefresh();
+    } catch (err) {
+      console.error("Failed to dismiss no-face images:", err);
+    } finally {
+      setDismissingNoFace(false);
+    }
+  };
+
+  // Split into three groups
+  const noFaceImages = images.filter((img) => !img.face_detected);
+  const faceImages = images.filter((img) => img.face_detected);
+  const recentImages = faceImages.filter((img) => recentUploadIds.has(img.id));
+  const previousImages = faceImages.filter((img) => !recentUploadIds.has(img.id));
+  const alignedCount = images.filter((img) => img.has_aligned).length;
+  const failedCount = noFaceImages.length;
+
+  const renderSortableGrid = (list: ImageRecord[]) => (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={(e) => handleDragEnd(e, list)}
+    >
+      <SortableContext items={list.map((img) => img.id)} strategy={rectSortingStrategy}>
+        <div style={styles.grid}>
+          {list.map((img) => (
+            <SortableCard
+              key={img.id}
+              img={img}
+              deletingId={deletingId}
+              realigningId={realigningId}
+              onDelete={handleDelete}
+              onToggle={handleToggle}
+              onRealign={handleRealign}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 
   return (
@@ -221,18 +286,14 @@ export default function ImageLibrary({
                   <span
                     style={{
                       ...styles.arrow,
-                      transform: noFaceCollapsed
-                        ? "rotate(-90deg)"
-                        : "rotate(0deg)",
+                      transform: noFaceCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                     }}
                   >
                     &#9660;
                   </span>
                   <span style={styles.noFaceLabel}>
                     No Face Detected{" "}
-                    <span style={styles.groupCount}>
-                      ({noFaceImages.length})
-                    </span>
+                    <span style={styles.groupCount}>({noFaceImages.length})</span>
                   </span>
                 </button>
                 <button
@@ -278,17 +339,13 @@ export default function ImageLibrary({
                   <span
                     style={{
                       ...styles.arrow,
-                      transform: recentCollapsed
-                        ? "rotate(-90deg)"
-                        : "rotate(0deg)",
+                      transform: recentCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                     }}
                   >
                     &#9660;
                   </span>
                   Just Uploaded{" "}
-                  <span style={styles.groupCount}>
-                    ({recentImages.length})
-                  </span>
+                  <span style={styles.groupCount}>({recentImages.length})</span>
                 </button>
                 <button style={styles.dismissBtn} onClick={onDismissRecent}>
                   Dismiss
@@ -296,11 +353,7 @@ export default function ImageLibrary({
               </div>
               {!recentCollapsed && (
                 <div style={styles.scrollContainer}>
-                  <div style={styles.grid}>
-                    {recentImages.map((img, idx) =>
-                      renderImageCard(img, idx, recentImages)
-                    )}
-                  </div>
+                  {renderSortableGrid(recentImages)}
                 </div>
               )}
             </div>
@@ -317,26 +370,18 @@ export default function ImageLibrary({
                   <span
                     style={{
                       ...styles.arrow,
-                      transform: previousCollapsed
-                        ? "rotate(-90deg)"
-                        : "rotate(0deg)",
+                      transform: previousCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
                     }}
                   >
                     &#9660;
                   </span>
                   Previously Processed{" "}
-                  <span style={styles.groupCount}>
-                    ({previousImages.length})
-                  </span>
+                  <span style={styles.groupCount}>({previousImages.length})</span>
                 </button>
               </div>
               {!previousCollapsed && (
                 <div style={styles.scrollContainer}>
-                  <div style={styles.grid}>
-                    {previousImages.map((img, idx) =>
-                      renderImageCard(img, idx, previousImages)
-                    )}
-                  </div>
+                  {renderSortableGrid(previousImages)}
                 </div>
               )}
             </div>
@@ -347,221 +392,3 @@ export default function ImageLibrary({
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  section: {
-    marginBottom: 32,
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  heading: {
-    fontSize: 18,
-    fontWeight: 600,
-    color: "var(--text)",
-  },
-  count: {
-    fontWeight: 400,
-    color: "var(--text-muted)",
-    fontSize: 14,
-  },
-  stats: {
-    display: "flex",
-    gap: 12,
-    fontSize: 13,
-  },
-  statAligned: {
-    color: "var(--success)",
-  },
-  statFailed: {
-    color: "var(--warning)",
-  },
-  empty: {
-    padding: "48px 24px",
-    textAlign: "center",
-    background: "var(--surface)",
-    borderRadius: "var(--radius)",
-    border: "1px solid var(--border)",
-  },
-  emptyText: {
-    color: "var(--text-muted)",
-    fontSize: 14,
-  },
-  group: {
-    marginBottom: 20,
-  },
-  noFaceGroup: {
-    marginBottom: 20,
-    border: "1px solid var(--warning)",
-    borderRadius: "var(--radius)",
-    padding: 12,
-    background: "rgba(251, 191, 36, 0.04)",
-  },
-  noFaceLabel: {
-    color: "var(--warning)",
-  },
-  noFaceCard: {
-    background: "var(--bg)",
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--warning)",
-    overflow: "hidden",
-    opacity: 0.8,
-  },
-  dismissNoFaceBtn: {
-    background: "var(--warning)",
-    border: "none",
-    borderRadius: "var(--radius-sm)",
-    color: "#000",
-    fontSize: 12,
-    fontWeight: 600,
-    padding: "5px 14px",
-    cursor: "pointer",
-  },
-  groupHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  collapseBtn: {
-    background: "none",
-    border: "none",
-    color: "var(--text)",
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "4px 0",
-  },
-  arrow: {
-    display: "inline-block",
-    fontSize: 10,
-    transition: "transform 0.2s ease",
-  },
-  groupCount: {
-    fontWeight: 400,
-    color: "var(--text-muted)",
-    fontSize: 13,
-  },
-  dismissBtn: {
-    background: "none",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius-sm)",
-    color: "var(--text-muted)",
-    fontSize: 12,
-    padding: "3px 10px",
-    cursor: "pointer",
-  },
-  scrollContainer: {
-    maxHeight: 500,
-    overflowY: "auto",
-    borderRadius: "var(--radius)",
-    border: "1px solid var(--border)",
-    background: "var(--surface)",
-    padding: 12,
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-    gap: 10,
-  },
-  card: {
-    background: "var(--bg)",
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--border)",
-    overflow: "hidden",
-    transition: "border-color 0.2s",
-  },
-  cardExcluded: {
-    opacity: 0.5,
-  },
-  thumbnail: {
-    width: "100%",
-    aspectRatio: "3/4",
-    objectFit: "cover",
-    display: "block",
-  },
-  noFace: {
-    width: "100%",
-    aspectRatio: "3/4",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(251, 191, 36, 0.08)",
-    gap: 4,
-  },
-  noFaceIcon: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: "var(--warning)",
-  },
-  noFaceText: {
-    fontSize: 12,
-    color: "var(--warning)",
-  },
-  cardInfo: {
-    padding: "6px 8px 2px",
-  },
-  filename: {
-    fontSize: 11,
-    color: "var(--text)",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  date: {
-    fontSize: 10,
-    color: "var(--text-muted)",
-    marginTop: 2,
-  },
-  cardActions: {
-    padding: "4px 8px 8px",
-    display: "flex",
-    gap: 4,
-    alignItems: "center",
-  },
-  moveButtons: {
-    display: "flex",
-    gap: 2,
-  },
-  btnMove: {
-    fontSize: 9,
-    padding: "2px 5px",
-    borderRadius: 3,
-    border: "1px solid var(--border)",
-    background: "transparent",
-    color: "var(--text-muted)",
-    cursor: "pointer",
-    lineHeight: 1,
-  },
-  btnSmall: {
-    fontSize: 11,
-    padding: "2px 7px",
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--border)",
-    background: "transparent",
-    color: "var(--text-muted)",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  btnIncluded: {
-    borderColor: "var(--success)",
-    color: "var(--success)",
-  },
-  btnExcluded: {
-    borderColor: "var(--text-muted)",
-    color: "var(--text-muted)",
-  },
-  btnDelete: {
-    borderColor: "var(--danger)",
-    color: "var(--danger)",
-    marginLeft: "auto",
-  },
-};
