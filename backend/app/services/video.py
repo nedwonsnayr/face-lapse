@@ -2,7 +2,6 @@
 
 import logging
 import subprocess
-import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -25,7 +24,9 @@ def generate_video(
         return None
 
     VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = VIDEOS_DIR / f"timelapse_{uuid.uuid4().hex}.mp4"
+    # Name by speed so regenerating at the same speed overwrites the old file
+    speed_label = f"{frame_duration:.2f}s"
+    output_path = VIDEOS_DIR / f"timelapse_{speed_label}.mp4"
 
     # Create a concat file listing each image with its duration
     # FFmpeg concat demuxer format:
