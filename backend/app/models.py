@@ -1,6 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean
 from .database import Base
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class Image(Base):
@@ -23,8 +26,8 @@ class Image(Base):
     face_detected = Column(Boolean, default=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     # Whether to include in video generation
     included_in_video = Column(Boolean, default=True)
