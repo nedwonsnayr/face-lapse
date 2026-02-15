@@ -1,4 +1,4 @@
-.PHONY: start backend frontend reset-db install
+.PHONY: start backend frontend reset-db install test-e2e test-e2e-headed
 
 # Start both backend and frontend
 start:
@@ -16,7 +16,15 @@ frontend:
 reset-db:
 	./scripts/reset-db.sh
 
-# Install all dependencies (Python + Node)
+# Run Playwright end-to-end tests (auto-starts isolated test server)
+test-e2e:
+	cd e2e && npx playwright test --config playwright.config.ts
+
+# Run Playwright tests with a visible browser window
+test-e2e-headed:
+	cd e2e && npx playwright test --config playwright.config.ts --headed
+
+# Install all dependencies (Python + Node + E2E)
 install:
 	@echo "Setting up Python virtual environment..."
 	python3 -m venv .venv
@@ -24,5 +32,8 @@ install:
 	@echo ""
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
+	@echo ""
+	@echo "Installing E2E test dependencies..."
+	cd e2e && npm install && npx playwright install chromium
 	@echo ""
 	@echo "✅ All dependencies installed."
