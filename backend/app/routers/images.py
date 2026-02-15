@@ -13,7 +13,6 @@ log = logging.getLogger("face-lapse.images")
 from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal, Base, engine
