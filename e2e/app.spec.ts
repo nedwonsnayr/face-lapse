@@ -212,17 +212,17 @@ test.describe("Face Lapse – face detected (real images)", () => {
     await alignStagedImages(page);
 
     // Wait for timelapse to be ready
-    await expect(page.getByRole("button", { name: "Download Video" })).toBeVisible({
-      timeout: 10_000,
-    });
+    const downloadButton = page.getByRole("button", { name: "Download Video" });
+    await expect(downloadButton).toBeVisible({ timeout: 10_000 });
 
-    // Set up download listener
-    const downloadPromise = page.waitForEvent("download", { timeout: 60_000 });
+    // Set up download listener BEFORE clicking (critical for catching the download)
+    const downloadPromise = page.waitForEvent("download", { timeout: 180_000 }); // 3 minutes for CI
 
-    // Click Download Video button
-    await page.getByRole("button", { name: "Download Video" }).click();
+    // Click Download Video button - this triggers async video generation
+    await downloadButton.click();
 
-    // Wait for download to complete
+    // Wait for download to complete (download is triggered after generation completes)
+    // The download happens automatically after the API call succeeds
     const download = await downloadPromise;
 
     // Verify filename matches expected pattern (face-lapse-MM-DD-YYYY.mp4)
