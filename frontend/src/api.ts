@@ -148,10 +148,21 @@ export async function alignImages(
   return finalResponse;
 }
 
+let _imagesEtag: string | null = null;
+let _imagesCached: ImageRecord[] = [];
+
 export async function listImages(): Promise<ImageRecord[]> {
-  const res = await fetch(`${API_BASE}/images`);
+  const headers: Record<string, string> = {};
+  if (_imagesEtag) headers["If-None-Match"] = _imagesEtag;
+
+  const res = await fetch(`${API_BASE}/images`, { headers });
+
+  if (res.status === 304) return _imagesCached;
   if (!res.ok) throw new Error("Failed to fetch images");
-  return res.json();
+
+  _imagesEtag = res.headers.get("etag");
+  _imagesCached = await res.json();
+  return _imagesCached;
 }
 
 export async function deleteImage(id: number): Promise<void> {
@@ -178,6 +189,19 @@ export async function reorderImages(
     body: JSON.stringify(items),
   });
   if (!res.ok) throw new Error("Failed to reorder images");
+}
+
+export async function realignImage(
+  id: number
+): Promise<{ id: number; face_detected: boolean; error: string | null }> {
+  const res = await fetch(`${API_BASE}/images/${id}/realign`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Re-alignment failed");
+  }
+  return res.json();
 }
 
 export async function deleteNoFaceImages(): Promise<{ deleted: number }> {

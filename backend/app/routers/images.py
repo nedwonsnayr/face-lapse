@@ -1,5 +1,6 @@
 """Image upload, listing, deletion, and serving endpoints."""
 
+import hashlib
 import json
 import logging
 import re
@@ -10,8 +11,8 @@ from typing import Generator, List
 
 log = logging.getLogger("face-lapse.images")
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -247,11 +248,11 @@ def _sort_images(images: list) -> list:
 
 
 @router.get("")
-def list_images(db: Session = Depends(get_db)):
+def list_images(request: Request, db: Session = Depends(get_db)):
     """List all images sorted by: manual sort_order, then numeric filename, then date."""
     images = db.query(Image).all()
     images = _sort_images(images)
-    return [
+    payload = [
         {
             "id": img.id,
             "original_filename": img.original_filename,
@@ -265,6 +266,14 @@ def list_images(db: Session = Depends(get_db)):
         }
         for img in images
     ]
+
+    # ETag based on content hash — allows 304 Not Modified responses
+    body = json.dumps(payload, separators=(",", ":")).encode()
+    etag = f'"{hashlib.md5(body).hexdigest()}"'
+    if request.headers.get("if-none-match") == etag:
+        return JSONResponse(status_code=304, content=None, headers={"ETag": etag})
+
+    return JSONResponse(content=payload, headers={"ETag": etag})
 
 
 class ReorderItem(BaseModel):
@@ -312,7 +321,11 @@ def get_aligned_image(image_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Image not found")
     if not image.aligned_path or not Path(image.aligned_path).exists():
         raise HTTPException(status_code=404, detail="Aligned image not available")
-    return FileResponse(image.aligned_path, media_type="image/jpeg")
+    return FileResponse(
+        image.aligned_path,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.get("/{image_id}/original")
@@ -323,7 +336,10 @@ def get_original_image(image_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Image not found")
     if not Path(image.original_path).exists():
         raise HTTPException(status_code=404, detail="Original image not found")
-    return FileResponse(image.original_path)
+    return FileResponse(
+        image.original_path,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.delete("/{image_id}")
@@ -356,3 +372,36 @@ def toggle_image_inclusion(image_id: int, db: Session = Depends(get_db)):
     image.included_in_video = not image.included_in_video
     db.commit()
     return {"id": image_id, "included_in_video": image.included_in_video}
+
+
+@router.post("/{image_id}/realign")
+def realign_image(image_id: int, db: Session = Depends(get_db)):
+    """Re-run face alignment on an existing image."""
+    image = db.query(Image).filter(Image.id == image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    if not Path(image.original_path).exists():
+        raise HTTPException(status_code=404, detail="Original image not found on disk")
+
+    stem = Path(image.original_filename).stem
+    aligned_path = ALIGNED_DIR / f"{stem}.jpg"
+    result = align_image(str(image.original_path), str(aligned_path))
+
+    image.aligned_path = str(aligned_path) if result.success else None
+    image.left_eye_x = result.left_eye[0] if result.left_eye else None
+    image.left_eye_y = result.left_eye[1] if result.left_eye else None
+    image.right_eye_x = result.right_eye[0] if result.right_eye else None
+    image.right_eye_y = result.right_eye[1] if result.right_eye else None
+    image.face_detected = result.success
+    image.included_in_video = result.success
+    db.commit()
+
+    log.info("Re-aligned image %d (%s): %s", image_id, image.original_filename,
+             "OK" if result.success else result.error)
+
+    return {
+        "id": image.id,
+        "original_filename": image.original_filename,
+        "face_detected": result.success,
+        "error": result.error,
+    }
