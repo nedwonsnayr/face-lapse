@@ -2,6 +2,8 @@
 
 Align selfies by eye position and generate a timelapse video.
 
+![Face Lapse demo](demo.gif)
+
 ## Prerequisites
 
 - Python 3.12+ (via miniforge3)
