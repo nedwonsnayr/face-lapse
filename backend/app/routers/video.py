@@ -27,6 +27,10 @@ def generate_timelapse(
         le=5.0,
         description="Duration in seconds each image is shown",
     ),
+    show_dates: bool = Query(
+        default=False,
+        description="Whether to overlay dates on video frames",
+    ),
     db: Session = Depends(get_db),
 ):
     """Generate an MP4 timelapse from all included aligned images."""
@@ -53,25 +57,39 @@ def generate_timelapse(
             detail="No aligned images available for video generation",
         )
 
-    # Collect paths, filtering out any missing files
-    aligned_paths = []
+    # Collect paths and metadata, filtering out any missing files
+    valid_images = []
     for img in images:
         if img.aligned_path and Path(img.aligned_path).exists():
-            aligned_paths.append(img.aligned_path)
+            valid_images.append(img)
 
-    if not aligned_paths:
+    if not valid_images:
         raise HTTPException(
             status_code=400,
             detail="No aligned image files found on disk",
         )
 
+    # Build image metadata (all images now have dates stored in DB)
+    image_metadata = [
+        {
+            "id": img.id,
+            "path": img.aligned_path,
+            "date": img.photo_taken_at if show_dates else None,
+        }
+        for img in valid_images
+    ]
+
     # Generate video
     log.info(
-        "Generating video: %d frames, %.2fs/frame (%.1fs total)",
-        len(aligned_paths), frame_duration, len(aligned_paths) * frame_duration,
+        "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s",
+        len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates,
     )
     t0 = time.time()
-    video_path = generate_video(aligned_paths, frame_duration=frame_duration)
+    video_path = generate_video(
+        image_metadata,
+        frame_duration=frame_duration,
+        show_dates=show_dates,
+    )
 
     if not video_path:
         log.error("Video generation failed (ffmpeg error)")
@@ -85,9 +103,9 @@ def generate_timelapse(
 
     return {
         "success": True,
-        "frame_count": len(aligned_paths),
+        "frame_count": len(valid_images),
         "frame_duration": frame_duration,
-        "total_duration": len(aligned_paths) * frame_duration,
+        "total_duration": len(valid_images) * frame_duration,
         "video_filename": Path(video_path).name,
     }
 
