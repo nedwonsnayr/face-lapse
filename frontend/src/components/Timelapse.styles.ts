@@ -29,13 +29,19 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "var(--radius)",
     overflow: "hidden",
     marginBottom: 12,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 600,
+    aspectRatio: "3 / 4", // Match video dimensions (600x800)
+    margin: "0 auto",
   },
   frame: {
     width: "100%",
-    maxHeight: 600,
+    height: "100%",
     display: "block",
     objectFit: "contain",
-    margin: "0 auto",
   },
 
   /* Controls */
