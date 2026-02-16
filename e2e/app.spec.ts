@@ -239,11 +239,17 @@ test.describe("Face Lapse – face detected (real images)", () => {
     expect(firstImageId).toBeDefined();
 
     // Click the "In" button for the first image to exclude it
-    await page.getByTestId(`toggle-include-button-${firstImageId}`).click();
-    await page.waitForTimeout(500);
+    const toggleButton = page.getByTestId(`toggle-include-button-${firstImageId}`);
+    await toggleButton.click();
 
-    // Frame counter should now show one fewer
-    await expect(frameCounter).toContainText(`${initialTotal - 1}`);
+    // Wait for the button text to change from "In" to "Out" to confirm the toggle completed
+    await expect(toggleButton).toHaveText("Out", { timeout: 10_000 });
+
+    // Wait for frame counter to update with the new count
+    // Get a fresh locator in case the element was recreated during re-render
+    const updatedFrameCounter = page.getByTestId("frame-counter");
+    await expect(updatedFrameCounter).toBeVisible({ timeout: 10_000 });
+    await expect(updatedFrameCounter).toContainText(`${initialTotal - 1}`, { timeout: 10_000 });
   });
 
   test("download video generates and downloads MP4 file", async ({ page }) => {

@@ -29,7 +29,10 @@ export default function Timelapse({ images }: TimelapseProps) {
 
     if (isPlaying && images.length > 0) {
       intervalRef.current = setInterval(() => {
-        setCurrentIndex((prev) => (prev + 1) % images.length);
+        setCurrentIndex((prev) => {
+          const next = (prev + 1) % images.length;
+          return next;
+        });
       }, frameDuration * 1000);
     }
 
@@ -38,10 +41,14 @@ export default function Timelapse({ images }: TimelapseProps) {
     };
   }, [frameDuration, isPlaying, images.length]);
 
-  // Reset index if images change
+  // Reset index if images change or if currentIndex is out of bounds
   useEffect(() => {
-    setCurrentIndex(0);
-  }, [images.length]);
+    if (images.length > 0 && currentIndex >= images.length) {
+      setCurrentIndex(0);
+    } else if (images.length === 0) {
+      setCurrentIndex(0);
+    }
+  }, [images.length, currentIndex]);
 
   const togglePlay = useCallback(() => {
     setIsPlaying((p) => !p);
@@ -72,7 +79,7 @@ export default function Timelapse({ images }: TimelapseProps) {
     } finally {
       setIsGenerating(false);
     }
-  }, [frameDuration, showDates]);
+  }, [frameDuration, showDates, showAge, birthday]);
 
   if (images.length === 0) {
     return (
@@ -87,6 +94,10 @@ export default function Timelapse({ images }: TimelapseProps) {
       </div>
     );
   }
+
+  // Ensure currentIndex is within bounds (useEffect will fix it if needed)
+  const safeIndex = Math.min(currentIndex, Math.max(0, images.length - 1));
+  const currentImage = images[safeIndex];
 
   // Calculate age based on birthday and image date
   const calculateAge = (imageDate: string | null): number | null => {
@@ -106,8 +117,6 @@ export default function Timelapse({ images }: TimelapseProps) {
     
     return age >= 0 ? age : null;
   };
-
-  const currentImage = images[currentIndex];
   const currentDate = currentImage?.photo_taken_at
     ? new Date(currentImage.photo_taken_at).toLocaleDateString("en-US", {
         month: "long",
@@ -123,12 +132,14 @@ export default function Timelapse({ images }: TimelapseProps) {
 
       {/* Slideshow */}
       <div data-testid="timelapse-player" style={styles.player}>
-        <img
-          data-testid="timelapse-frame"
-          src={getAlignedImageUrl(currentImage.id)}
-          alt={`Frame ${currentIndex + 1}`}
-          style={styles.frame}
-        />
+        {currentImage && (
+          <img
+            data-testid="timelapse-frame"
+            src={getAlignedImageUrl(currentImage.id)}
+            alt={`Frame ${safeIndex + 1}`}
+            style={styles.frame}
+          />
+        )}
         {showDates && currentDate && (
           <div data-testid="timelapse-date-overlay" style={styles.dateOverlay}>
             <div>{currentDate}</div>
@@ -150,15 +161,16 @@ export default function Timelapse({ images }: TimelapseProps) {
             type="range"
             min={0}
             max={images.length - 1}
-            value={currentIndex}
+            value={safeIndex}
             onChange={(e) => {
-              setCurrentIndex(parseInt(e.target.value, 10));
+              const newIndex = parseInt(e.target.value, 10);
+              setCurrentIndex(Math.min(newIndex, images.length - 1));
               setIsPlaying(false);
             }}
             style={styles.scrubber}
           />
           <span data-testid="frame-counter" style={styles.scrubLabel}>
-            {currentIndex + 1} / {images.length}
+            {safeIndex + 1} / {images.length}
           </span>
         </div>
 
