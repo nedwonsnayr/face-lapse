@@ -75,7 +75,7 @@ export default function Timelapse({ imageIds }: TimelapseProps) {
       <div style={styles.section}>
         <h2 style={styles.heading}>Timelapse</h2>
         <div style={styles.empty}>
-          <p style={styles.emptyText}>
+          <p data-testid="empty-timelapse-message" style={styles.emptyText}>
             No aligned images yet. Upload and align some selfies to see the
             timelapse.
           </p>
@@ -102,7 +102,7 @@ export default function Timelapse({ imageIds }: TimelapseProps) {
       {/* Controls */}
       <div style={styles.controls}>
         <div style={styles.scrubRow}>
-          <button style={styles.playBtn} onClick={togglePlay}>
+          <button data-testid="play-pause-button" style={styles.playBtn} onClick={togglePlay}>
             {isPlaying ? "⏸" : "▶"}
           </button>
           <input
@@ -116,7 +116,7 @@ export default function Timelapse({ imageIds }: TimelapseProps) {
             }}
             style={styles.scrubber}
           />
-          <span style={styles.scrubLabel}>
+          <span data-testid="frame-counter" style={styles.scrubLabel}>
             {currentIndex + 1} / {imageIds.length}
           </span>
         </div>
@@ -134,6 +134,7 @@ export default function Timelapse({ imageIds }: TimelapseProps) {
         </div>
 
         <button
+          data-testid="download-video-button"
           style={{
             ...styles.downloadBtn,
             ...(isGenerating ? styles.downloadBtnDisabled : {}),
