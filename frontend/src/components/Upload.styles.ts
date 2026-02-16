@@ -80,9 +80,9 @@ const styles: Record<string, React.CSSProperties> = {
     background: "var(--bg)",
     borderRadius: "var(--radius)",
     padding: 24,
-    maxWidth: 640,
-    width: "90%",
-    maxHeight: "90vh",
+    maxWidth: 1200,
+    width: "95%",
+    maxHeight: "95vh",
     display: "flex",
     flexDirection: "column",
   },
@@ -119,10 +119,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   webcamVideo: {
     width: "100%",
-    maxHeight: "60vh",
+    maxHeight: "80vh",
     borderRadius: "var(--radius-sm)",
     background: "#000",
-    objectFit: "cover",
+    objectFit: "contain", // Changed from cover to contain to show full image
     transform: "scaleX(-1)", // Mirror the video for selfie view
   },
   webcamControls: {
