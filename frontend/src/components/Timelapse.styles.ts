@@ -133,6 +133,9 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 16,
   },
+  toggleRowDisabled: {
+    opacity: 0.5,
+  },
   toggleLabel: {
     display: "inline-flex",
     alignItems: "center",
@@ -140,6 +143,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: "var(--text)",
     cursor: "pointer",
+  },
+  toggleLabelDisabled: {
+    cursor: "not-allowed",
+    color: "var(--text-muted)",
   },
   toggleInput: {
     cursor: "pointer",
@@ -154,6 +161,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: "var(--text)",
     whiteSpace: "nowrap",
+  },
+  birthdayLabelDisabled: {
+    color: "var(--text-muted)",
   },
   dateInput: {
     padding: "4px 8px",

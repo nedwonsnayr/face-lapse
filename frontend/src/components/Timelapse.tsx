@@ -173,23 +173,33 @@ export default function Timelapse({ images }: TimelapseProps) {
               onChange={(e) => setShowDates(e.target.checked)}
               style={styles.toggleInput}
             />
-            Show date in timelapse
+            Show date
           </label>
         </div>
 
-        <div style={styles.toggleRow}>
-          <label style={styles.toggleLabel}>
+        <div style={{
+          ...styles.toggleRow,
+          ...(!showDates ? styles.toggleRowDisabled : {}),
+        }}>
+          <label style={{
+            ...styles.toggleLabel,
+            ...(!showDates ? styles.toggleLabelDisabled : {}),
+          }}>
             <input
               data-testid="show-age-toggle"
               type="checkbox"
               checked={showAge}
               onChange={(e) => setShowAge(e.target.checked)}
+              disabled={!showDates}
               style={styles.toggleInput}
             />
             <span>Show age</span>
           </label>
           <div style={styles.birthdayContainer}>
-            <label style={styles.birthdayLabel} htmlFor="birthday-input">
+            <label style={{
+              ...styles.birthdayLabel,
+              ...(!showDates ? styles.birthdayLabelDisabled : {}),
+            }} htmlFor="birthday-input">
               Birthday:
             </label>
             <DatePicker
@@ -197,7 +207,7 @@ export default function Timelapse({ images }: TimelapseProps) {
               data-testid="birthday-input"
               value={birthday}
               onChange={setBirthday}
-              disabled={!showAge}
+              disabled={!showAge || !showDates}
             />
           </div>
         </div>
