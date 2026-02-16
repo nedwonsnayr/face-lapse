@@ -26,10 +26,20 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ffmpeg-installed
+          key: ${{ runner.os }}-ffmpeg-installed
+
       - name: Install FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
+          mkdir -p ~/.cache/ffmpeg-installed
+          touch ~/.cache/ffmpeg-installed/.marker
 
       - name: Cache Python dependencies
         id: cache-python
