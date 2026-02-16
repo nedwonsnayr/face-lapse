@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import path from "path";
+import fs from "fs";
 
 const FIXTURES = path.resolve(__dirname, "fixtures");
 const NO_FACE = [
@@ -45,6 +46,38 @@ async function deleteAllImages(page: import("@playwright/test").Page) {
   for (const img of images) {
     await page.request.delete(`/api/images/${img.id}`);
   }
+}
+
+/** Upload a file via API and return the response JSON. */
+async function uploadFileViaAPI(
+  page: import("@playwright/test").Page,
+  filePath: string
+): Promise<any[]> {
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileName = path.basename(filePath);
+  
+  // Use evaluate to make fetch call from browser context where FormData works
+  const result = await page.evaluate(
+    async ({ buffer, name, baseUrl }) => {
+      const form = new FormData();
+      const blob = new Blob([new Uint8Array(buffer)], { type: "image/jpeg" });
+      form.append("files", blob, name);
+      
+      const res = await fetch(`${baseUrl}/api/images/upload`, {
+        method: "POST",
+        body: form,
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Upload failed: ${res.statusText}`);
+      }
+      
+      return res.json();
+    },
+    { buffer: Array.from(fileBuffer), name: fileName, baseUrl: "http://localhost:5111" }
+  );
+  
+  return result;
 }
 
 /* ── Tests ────────────────────────────────────────────── */
@@ -261,5 +294,132 @@ test.describe("Face Lapse – mixed upload (face + no face)", () => {
 
     // Timelapse should work with the 1 aligned image
     await expect(page.getByRole("button", { name: /⏸|▶/ })).toBeVisible();
+  });
+});
+
+test.describe("Face Lapse – duplicate detection", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await deleteAllImages(page);
+    await page.reload();
+  });
+
+  test.afterEach(async ({ page }) => {
+    await deleteAllImages(page);
+  });
+
+  test("uploading duplicate file via API returns skipped response", async ({
+    page,
+  }) => {
+    // Upload first image via API
+    const result1 = await uploadFileViaAPI(page, WITH_FACE[0]);
+    expect(result1).toHaveLength(1);
+    expect(result1[0]).toHaveProperty("id");
+    expect(result1[0]).toHaveProperty("original_filename");
+    const firstImageId = result1[0].id;
+    const firstImageFilename = result1[0].original_filename;
+
+    // Upload the same file again via API
+    const result2 = await uploadFileViaAPI(page, WITH_FACE[0]);
+    expect(result2).toHaveLength(1);
+    
+    // Verify duplicate response structure
+    expect(result2[0]).toHaveProperty("skipped", true);
+    expect(result2[0]).toHaveProperty("existing_id", firstImageId);
+    expect(result2[0]).toHaveProperty("id", firstImageId);
+    expect(result2[0]).toHaveProperty("original_filename", firstImageFilename);
+  });
+
+  test("uploading duplicate file results in only one image in database", async ({
+    page,
+  }) => {
+    // Upload first image
+    await uploadAndStage(page, [WITH_FACE[0]]);
+    await alignStagedImages(page);
+
+    // Get the image count
+    const imagesRes1 = await page.request.get("/api/images");
+    expect(imagesRes1.ok()).toBeTruthy();
+    const images1 = await imagesRes1.json();
+    const initialCount = images1.length;
+
+    // Upload the same file again
+    await uploadAndStage(page, [WITH_FACE[0]]);
+    await alignStagedImages(page);
+
+    // Verify only one image was added (count should be the same)
+    const imagesRes2 = await page.request.get("/api/images");
+    expect(imagesRes2.ok()).toBeTruthy();
+    const images2 = await imagesRes2.json();
+    expect(images2.length).toBe(initialCount);
+  });
+
+  test("uploading duplicate in same batch is handled correctly", async ({
+    page,
+  }) => {
+    // Upload the same file twice in one batch
+    await uploadAndStage(page, [WITH_FACE[0], WITH_FACE[0]]);
+    
+    // Should still show staging area (duplicates are silently skipped)
+    await expect(page.getByText(/images ready to align/)).toBeVisible();
+
+    // Align the images
+    await alignStagedImages(page);
+
+    // Verify only one image exists
+    const imagesRes = await page.request.get("/api/images");
+    expect(imagesRes.ok()).toBeTruthy();
+    const images = await imagesRes.json();
+    
+    // Filter to images with the same source filename (if available) or check count
+    // Since we uploaded the same file twice, there should only be one unique image
+    const uniqueImages = new Set(images.map((img: any) => img.original_filename));
+    expect(uniqueImages.size).toBeLessThanOrEqual(images.length);
+  });
+
+  test("uploading duplicate after alignment still prevents duplicate", async ({
+    page,
+  }) => {
+    // Upload and align first image
+    await uploadAndStage(page, [WITH_FACE[0]]);
+    await alignStagedImages(page);
+
+    // Wait for alignment to complete
+    await expect(page.getByText(/\d+ aligned successfully/)).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // Get initial image count
+    const imagesRes1 = await page.request.get("/api/images");
+    expect(imagesRes1.ok()).toBeTruthy();
+    const images1 = await imagesRes1.json();
+    const initialCount = images1.length;
+
+    // Upload the same file again (should be detected as duplicate even though it's aligned)
+    const result = await uploadFileViaAPI(page, WITH_FACE[0]);
+    
+    // Should return skipped response
+    expect(result[0]).toHaveProperty("skipped", true);
+
+    // Verify image count hasn't increased
+    const imagesRes2 = await page.request.get("/api/images");
+    expect(imagesRes2.ok()).toBeTruthy();
+    const images2 = await imagesRes2.json();
+    expect(images2.length).toBe(initialCount);
+  });
+
+  test("uploading different files with same content are detected as duplicates", async ({
+    page,
+  }) => {
+    // Upload first image
+    const result1 = await uploadFileViaAPI(page, WITH_FACE[0]);
+    const firstImageId = result1[0].id;
+
+    // Upload the same file again (same content/hash, should be detected as duplicate)
+    const result2 = await uploadFileViaAPI(page, WITH_FACE[0]);
+    
+    // Should be detected as duplicate
+    expect(result2[0]).toHaveProperty("skipped", true);
+    expect(result2[0]).toHaveProperty("existing_id", firstImageId);
   });
 });

@@ -48,6 +48,15 @@ def _extract_numeric_part(filename: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+def _calculate_file_hash(filepath: Path) -> str:
+    """Calculate MD5 hash of a file."""
+    hash_md5 = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
 @router.post("/upload")
 async def upload_images(
     files: list[UploadFile] = File(...),
@@ -75,6 +84,31 @@ async def upload_images(
         content = await file.read()
         temp_path.write_bytes(content)
 
+        # Calculate file hash for duplicate detection
+        file_hash = _calculate_file_hash(temp_path)
+
+        # Check for duplicate
+        existing_image = db.query(Image).filter(Image.file_hash == file_hash).first()
+        if existing_image:
+            # Duplicate found - delete temp file and skip
+            temp_path.unlink()
+            log.info(
+                "Skipped duplicate: %s (matches existing %s)",
+                source_filename,
+                existing_image.original_filename,
+            )
+            saved_files.append({
+                "temp_path": None,
+                "source_filename": source_filename,
+                "ext": ext,
+                "photo_taken_at": None,
+                "file_hash": file_hash,
+                "duplicate": True,
+                "existing_id": existing_image.id,
+                "existing_filename": existing_image.original_filename,
+            })
+            continue
+
         # Extract date: try EXIF first, then parse from filename
         exif_date_str = extract_exif_date(str(temp_path))
         photo_taken_at = None
@@ -91,6 +125,8 @@ async def upload_images(
             "source_filename": source_filename,
             "ext": ext,
             "photo_taken_at": photo_taken_at,
+            "file_hash": file_hash,
+            "duplicate": False,
         })
 
     # Sort by photo date first (handles mixed filename formats like IMG_1234 + AirDrop UUIDs),
@@ -112,8 +148,20 @@ async def upload_images(
     )
 
     results = []
+    saved_count = 0
     for idx, info in enumerate(saved_files):
-        counter = start_counter + idx
+        # Handle duplicates
+        if info.get("duplicate"):
+            results.append({
+                "id": info["existing_id"],
+                "original_filename": info["existing_filename"],
+                "source_filename": info["source_filename"],
+                "skipped": True,
+                "existing_id": info["existing_id"],
+            })
+            continue
+
+        counter = start_counter + saved_count
         int_filename = f"{counter}{info['ext']}"
         original_path = ORIGINALS_DIR / int_filename
         Path(info["temp_path"]).rename(original_path)
@@ -126,6 +174,7 @@ async def upload_images(
             photo_taken_at=info["photo_taken_at"],
             face_detected=False,
             included_in_video=False,
+            file_hash=info["file_hash"],
         )
         db.add(image)
         db.flush()
@@ -134,9 +183,14 @@ async def upload_images(
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
         })
+        saved_count += 1
 
     db.commit()
-    log.info("Saved %d originals (not yet aligned)", len(results))
+    skipped_count = len(results) - saved_count
+    if skipped_count > 0:
+        log.info("Saved %d originals, skipped %d duplicates (not yet aligned)", saved_count, skipped_count)
+    else:
+        log.info("Saved %d originals (not yet aligned)", saved_count)
     return results
 
 
@@ -144,7 +198,6 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
     """
     Generator that aligns each image and yields NDJSON progress lines.
     """
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     total = len(image_ids)
     all_results = []
