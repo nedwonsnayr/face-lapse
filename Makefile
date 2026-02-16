@@ -26,6 +26,16 @@ test-e2e-headed:
 
 # Install all dependencies (Python + Node + E2E)
 install:
+	@echo "Checking for FFmpeg..."
+	@if ! command -v ffmpeg > /dev/null 2>&1; then \
+		echo "⚠️  FFmpeg not found. Please install it:"; \
+		if [ "$$(uname)" = "Darwin" ]; then \
+			echo "   macOS: brew install ffmpeg"; \
+		else \
+			echo "   Linux: sudo apt-get install ffmpeg (or your distribution's package manager)"; \
+		fi; \
+		echo ""; \
+	fi
 	@echo "Setting up Python virtual environment..."
 	python3 -m venv .venv
 	. .venv/bin/activate && pip install -r backend/requirements.txt
