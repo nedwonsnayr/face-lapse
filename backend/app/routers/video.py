@@ -31,6 +31,10 @@ def generate_timelapse(
         default=False,
         description="Whether to overlay dates on video frames",
     ),
+    birthday: str | None = Query(
+        default=None,
+        description="Birthday in YYYY-MM-DD format for age calculation",
+    ),
     db: Session = Depends(get_db),
 ):
     """Generate an MP4 timelapse from all included aligned images."""
@@ -69,20 +73,38 @@ def generate_timelapse(
             detail="No aligned image files found on disk",
         )
 
+    # Calculate age for each image if birthday is provided
+    def calculate_age(photo_date: datetime | None, birth_date: date | None) -> int | None:
+        if not photo_date or not birth_date:
+            return None
+        age = photo_date.year - birth_date.year
+        if (photo_date.month, photo_date.day) < (birth_date.month, birth_date.day):
+            age -= 1
+        return age if age >= 0 else None
+
+    birth_date = None
+    if birthday:
+        try:
+            birth_date = datetime.strptime(birthday, "%Y-%m-%d").date()
+        except ValueError:
+            log.warning("Invalid birthday format: %s, ignoring", birthday)
+
     # Build image metadata (all images now have dates stored in DB)
     image_metadata = [
         {
             "id": img.id,
             "path": img.aligned_path,
             "date": img.photo_taken_at if show_dates else None,
+            "age": calculate_age(img.photo_taken_at, birth_date) if birthday and show_dates else None,
         }
         for img in valid_images
     ]
 
     # Generate video
+    show_age = birthday is not None and show_dates
     log.info(
-        "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s",
-        len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates,
+        "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s",
+        len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates, show_age,
     )
     t0 = time.time()
     video_path = generate_video(

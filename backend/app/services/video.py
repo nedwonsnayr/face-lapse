@@ -14,9 +14,9 @@ from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
 log = logging.getLogger("face-lapse.video")
 
 
-def _overlay_date_on_image(image_path: str, date_str: str, output_path: str) -> bool:
+def _overlay_date_on_image(image_path: str, date_str: str, output_path: str, age: int | None = None) -> bool:
     """
-    Overlay date text on an image using PIL.
+    Overlay date text (and optionally age) on an image using PIL.
     Returns True on success, False on failure.
     """
     try:
@@ -42,23 +42,48 @@ def _overlay_date_on_image(image_path: str, date_str: str, output_path: str) -> 
                 font = ImageFont.load_default()
         
         # Calculate text size and position (bottom right with padding)
+        img_width, img_height = img.size
+        box_padding = 10
+        margin = 20  # Margin from edges
+        
+        # Calculate date text size
         bbox = draw.textbbox((0, 0), date_str, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Position: bottom right with 10px padding
-        img_width, img_height = img.size
-        x = img_width - text_width - 20  # 20px padding (10px margin + 10px box border)
-        y = img_height - text_height - 20
+        # Calculate age text size if provided
+        age_str = None
+        age_text_width = 0
+        age_text_height = 0
+        if age is not None:
+            age_str = f"Age: {age}"
+            age_bbox = draw.textbbox((0, 0), age_str, font=font)
+            age_text_width = age_bbox[2] - age_bbox[0]
+            age_text_height = age_bbox[3] - age_bbox[1]
+        
+        # Calculate total height needed (date + spacing + age if present)
+        spacing = 8 if age is not None else 0
+        total_text_height = text_height + spacing + age_text_height
+        
+        # Calculate box width (max of date and age width)
+        box_width = max(text_width, age_text_width) + (box_padding * 2)
+        box_height = total_text_height + (box_padding * 2)
+        
+        # Position: bottom right with margin
+        box_x = img_width - box_width - margin
+        box_y = img_height - box_height - margin
+        
+        # Text positions within the box
+        date_x = box_x + box_padding
+        date_y = box_y + box_padding
         
         # Draw semi-transparent background box
         # PIL doesn't support RGBA in RGB mode, so we create an overlay
-        box_padding = 10
         box_coords = [
-            x - box_padding,
-            y - box_padding,
-            x + text_width + box_padding,
-            y + text_height + box_padding,
+            box_x,
+            box_y,
+            box_x + box_width,
+            box_y + box_height,
         ]
         # Create a semi-transparent overlay by blending
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
@@ -67,8 +92,15 @@ def _overlay_date_on_image(image_path: str, date_str: str, output_path: str) -> 
         img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
         
-        # Draw the text
-        draw.text((x, y), date_str, fill=(255, 255, 255), font=font)
+        # Draw the date text
+        draw.text((date_x, date_y), date_str, fill=(255, 255, 255), font=font)
+        
+        # Draw age text below date if provided, right-aligned
+        if age_str:
+            age_y = date_y + text_height + spacing
+            # Right-align the age text within the box
+            age_x = box_x + box_width - age_text_width - box_padding
+            draw.text((age_x, age_y), age_str, fill=(255, 255, 255), font=font)
         
         # Save the image
         img.save(output_path, "JPEG", quality=95)
@@ -126,7 +158,8 @@ def generate_video(
             temp_image_path = temp_dir_path / f"dated_{Path(original_path).name}"
             
             # Overlay date on image
-            if _overlay_date_on_image(original_path, date_str, str(temp_image_path)):
+            age = img_meta.get("age")
+            if _overlay_date_on_image(original_path, date_str, str(temp_image_path), age):
                 # Update the path to use the temp image
                 img_meta["path"] = str(temp_image_path)
                 temp_images.append(temp_image_path)

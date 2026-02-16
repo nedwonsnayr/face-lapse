@@ -215,13 +215,17 @@ export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
 
 export async function generateVideo(
   frameDuration: number,
-  showDates: boolean = false
+  showDates: boolean = false,
+  birthday: string | null = null
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
   });
   if (showDates) {
     params.append("show_dates", "true");
+  }
+  if (birthday) {
+    params.append("birthday", birthday);
   }
   const res = await fetch(
     `${API_BASE}/video/generate?${params.toString()}`,

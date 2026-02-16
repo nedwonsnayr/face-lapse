@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { generateVideo, getAlignedImageUrl, ImageRecord } from "../api";
 import SpeedSlider from "./SpeedSlider";
+import DatePicker from "./DatePicker";
 import styles from "./Timelapse.styles";
 
 interface TimelapseProps {
@@ -15,6 +16,8 @@ export default function Timelapse({ images }: TimelapseProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(true);
+  const [showAge, setShowAge] = useState(true);
+  const [birthday, setBirthday] = useState("1995-10-06"); // Default to 10/06/1995
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear and restart interval whenever frameDuration or isPlaying changes
@@ -48,7 +51,7 @@ export default function Timelapse({ images }: TimelapseProps) {
     setIsGenerating(true);
     setError(null);
     try {
-      const res = await generateVideo(frameDuration, showDates);
+      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null);
       // Trigger download via a temporary link
       const url = `/api/video/${res.video_filename}`;
       const a = document.createElement("a");
@@ -85,6 +88,25 @@ export default function Timelapse({ images }: TimelapseProps) {
     );
   }
 
+  // Calculate age based on birthday and image date
+  const calculateAge = (imageDate: string | null): number | null => {
+    if (!imageDate || !birthday) return null;
+    
+    const birthDate = new Date(birthday);
+    const photoDate = new Date(imageDate);
+    
+    if (isNaN(birthDate.getTime()) || isNaN(photoDate.getTime())) return null;
+    
+    let age = photoDate.getFullYear() - birthDate.getFullYear();
+    const monthDiff = photoDate.getMonth() - birthDate.getMonth();
+    
+    if (monthDiff < 0 || (monthDiff === 0 && photoDate.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    
+    return age >= 0 ? age : null;
+  };
+
   const currentImage = images[currentIndex];
   const currentDate = currentImage?.photo_taken_at
     ? new Date(currentImage.photo_taken_at).toLocaleDateString("en-US", {
@@ -93,6 +115,7 @@ export default function Timelapse({ images }: TimelapseProps) {
         year: "numeric",
       })
     : null;
+  const currentAge = showAge ? calculateAge(currentImage?.photo_taken_at || null) : null;
 
   return (
     <div style={styles.section}>
@@ -108,7 +131,10 @@ export default function Timelapse({ images }: TimelapseProps) {
         />
         {showDates && currentDate && (
           <div data-testid="timelapse-date-overlay" style={styles.dateOverlay}>
-            {currentDate}
+            <div>{currentDate}</div>
+            {showAge && currentAge !== null && (
+              <div style={styles.ageText}>Age: {currentAge}</div>
+            )}
           </div>
         )}
       </div>
@@ -149,6 +175,31 @@ export default function Timelapse({ images }: TimelapseProps) {
             />
             Show date in timelapse
           </label>
+        </div>
+
+        <div style={styles.toggleRow}>
+          <label style={styles.toggleLabel}>
+            <input
+              data-testid="show-age-toggle"
+              type="checkbox"
+              checked={showAge}
+              onChange={(e) => setShowAge(e.target.checked)}
+              style={styles.toggleInput}
+            />
+            <span>Show age</span>
+          </label>
+          <div style={styles.birthdayContainer}>
+            <label style={styles.birthdayLabel} htmlFor="birthday-input">
+              Birthday:
+            </label>
+            <DatePicker
+              id="birthday-input"
+              data-testid="birthday-input"
+              value={birthday}
+              onChange={setBirthday}
+              disabled={!showAge}
+            />
+          </div>
         </div>
 
         <div style={styles.info}>

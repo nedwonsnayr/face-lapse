@@ -116,12 +116,25 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "var(--radius-sm)",
     backdropFilter: "blur(4px)",
     pointerEvents: "none",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    alignItems: "flex-end",
+  },
+  ageText: {
+    fontSize: 14,
+    fontWeight: 500,
+    opacity: 0.9,
+    textAlign: "right",
   },
   toggleRow: {
     marginBottom: 16,
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
   },
   toggleLabel: {
-    display: "flex",
+    display: "inline-flex",
     alignItems: "center",
     gap: 8,
     fontSize: 14,
@@ -131,6 +144,30 @@ const styles: Record<string, React.CSSProperties> = {
   toggleInput: {
     cursor: "pointer",
     accentColor: "var(--primary)",
+  },
+  birthdayContainer: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  birthdayLabel: {
+    fontSize: 13,
+    color: "var(--text)",
+    whiteSpace: "nowrap",
+  },
+  dateInput: {
+    padding: "4px 8px",
+    fontSize: 13,
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--bg)",
+    color: "var(--text)",
+    cursor: "pointer",
+  },
+  dateInputDisabled: {
+    opacity: 0.5,
+    cursor: "not-allowed",
+    background: "var(--surface)",
   },
 };
 
