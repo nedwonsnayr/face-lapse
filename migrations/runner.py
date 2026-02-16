@@ -63,6 +63,7 @@ def run_migrations(engine):
         # Apply pending migrations
         for name, module in migrations:
             if name in applied:
+                log.info("⏭️  Migration %s skipped (already applied)", name)
                 continue
             
             log.info("Applying migration: %s", name)
