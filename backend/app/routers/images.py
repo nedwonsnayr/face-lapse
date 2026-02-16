@@ -200,10 +200,14 @@ async def upload_images(
                     "Duplicate in batch without existing_id: %s",
                     info["source_filename"]
                 )
+                # For same-batch duplicates, we don't have the existing image ID yet,
+                # but we can try to get the date from the first occurrence if it's already saved
+                # For now, we'll return None for photo_taken_at in this case
                 results.append({
                     "id": -1,  # Placeholder ID for same-batch duplicates
                     "original_filename": info.get("existing_filename") or info["source_filename"],
                     "source_filename": info["source_filename"],
+                    "photo_taken_at": None,  # Can't determine date for same-batch duplicate yet
                     "skipped": True,
                     "existing_id": None,
                 })
@@ -214,10 +218,13 @@ async def upload_images(
                     existing_id,
                     info["existing_filename"],
                 )
+                # Get the existing image to include its photo_taken_at
+                existing_image = db.query(Image).filter(Image.id == existing_id).first()
                 results.append({
                     "id": existing_id,  # Use existing image's ID for thumbnail display
                     "original_filename": info["existing_filename"],
                     "source_filename": info["source_filename"],
+                    "photo_taken_at": existing_image.photo_taken_at.isoformat() if existing_image and existing_image.photo_taken_at else None,
                     "skipped": True,
                     "existing_id": existing_id,
                 })
@@ -251,6 +258,7 @@ async def upload_images(
             "id": image.id,
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
+            "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
             "skipped": False,  # Explicitly mark as not skipped
         })
         saved_count += 1

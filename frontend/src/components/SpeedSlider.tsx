@@ -8,14 +8,15 @@ interface SpeedSliderProps {
 
 export default function SpeedSlider({ value, onChange }: SpeedSliderProps) {
   return (
-    <div style={styles.container}>
+    <div data-testid="speed-slider" style={styles.container}>
       <label style={styles.label}>
         Frame Duration:{" "}
-        <span style={styles.value}>{value.toFixed(2)}s</span>
+        <span data-testid="speed-slider-value" style={styles.value}>{value.toFixed(2)}s</span>
       </label>
       <div style={styles.sliderRow}>
         <span style={styles.tick}>0.05s</span>
         <input
+          data-testid="speed-slider-input"
           type="range"
           min={0.05}
           max={1.0}

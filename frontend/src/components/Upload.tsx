@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   uploadImages,
   alignImages,
@@ -28,6 +28,12 @@ export default function Upload({ onAlignComplete }: UploadProps) {
   const [lastResult, setLastResult] = useState<AlignResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Webcam state
+  const [isWebcamActive, setIsWebcamActive] = useState(false);
+  const [webcamError, setWebcamError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const handleFiles = useCallback(async (files: File[]) => {
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
@@ -146,6 +152,99 @@ export default function Upload({ onAlignComplete }: UploadProps) {
     if (stage === "idle") fileInputRef.current?.click();
   };
 
+  const startWebcam = useCallback(async () => {
+    try {
+      setWebcamError(null);
+      
+      // Request stream first
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { 
+          facingMode: "user", // Front-facing camera
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      });
+      
+      streamRef.current = stream;
+      setIsWebcamActive(true); // Set active after stream is ready
+      
+      // Wait for modal to render, then set stream on video
+      setTimeout(() => {
+        if (videoRef.current && streamRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.play()
+            .catch((err) => {
+              console.error("Video play error:", err);
+              setWebcamError("Failed to start video preview: " + err.message);
+            });
+        }
+      }, 200);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to access webcam";
+      console.error("Webcam error:", msg);
+      setWebcamError(msg);
+      setIsWebcamActive(false);
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    }
+  }, []);
+
+  const stopWebcam = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsWebcamActive(false);
+    setWebcamError(null);
+  }, []);
+
+  const capturePhoto = useCallback(() => {
+    if (!videoRef.current) return;
+
+    const video = videoRef.current;
+    
+    // Check if video is ready
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setWebcamError("Video not ready. Please wait a moment and try again.");
+      return;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Draw video frame to canvas
+    ctx.drawImage(video, 0, 0);
+
+    // Convert canvas to blob, then to File
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        
+        // Create a File from the blob with a timestamp filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const file = new File([blob], `webcam-${timestamp}.jpg`, {
+          type: "image/jpeg",
+          lastModified: Date.now(),
+        });
+
+        // Stop webcam and upload the photo
+        stopWebcam();
+        handleFiles([file]);
+      },
+      "image/jpeg",
+      0.95 // Quality
+    );
+  }, [stopWebcam, handleFiles]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(Array.from(e.target.files || []));
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -164,6 +263,26 @@ export default function Upload({ onAlignComplete }: UploadProps) {
   const nonDuplicateCount = stagedImages.filter((img) => !img.skipped).length;
   const canAlign = nonDuplicateCount > 0;
 
+  // Cleanup webcam on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
+  // Cleanup webcam on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div style={styles.section}>
       <h2 style={styles.heading}>Upload Selfies</h2>
@@ -171,6 +290,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       {/* Drop zone — only shown in idle / uploading states */}
       {(stage === "idle" || stage === "uploading") && (
         <div
+          data-testid="dropzone"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -182,6 +302,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
           }}
         >
           <input
+            data-testid="file-input"
             ref={fileInputRef}
             type="file"
             accept="image/*"
@@ -191,16 +312,17 @@ export default function Upload({ onAlignComplete }: UploadProps) {
           />
 
           {stage === "uploading" ? (
-            <div style={styles.uploadProgress}>
+            <div data-testid="upload-progress" style={styles.uploadProgress}>
               <div style={styles.progressBarOuter}>
                 <div
+                  data-testid="upload-progress-bar"
                   style={{
                     ...styles.progressBarInner,
                     width: `${uploadTotal > 0 ? Math.round((uploadCurrent / uploadTotal) * 100) : 0}%`,
                   }}
                 />
               </div>
-              <p style={styles.progressText}>
+              <p data-testid="upload-progress-text" style={styles.progressText}>
                 Uploading {uploadCurrent} of {uploadTotal} files...
               </p>
             </div>
@@ -209,6 +331,18 @@ export default function Upload({ onAlignComplete }: UploadProps) {
               <div style={styles.icon}>+</div>
               <p data-testid="dropzone-text" style={styles.dropText}>Drop images here or click to browse</p>
               <p style={styles.dropSubtext}>Supports JPG, PNG, WebP, HEIC</p>
+              <div style={styles.dropzoneActions}>
+                <button
+                  data-testid="webcam-button"
+                  style={styles.webcamButton}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    startWebcam();
+                  }}
+                >
+                  📷 Take Photo
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -244,7 +378,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
                 style={styles.stagingItem}
               >
                 <img
-                  src={img.id > 0 ? getOriginalImageUrl(img.id) : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
+                  src={img.id > 0 ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.source_filename || img.original_filename}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
                   alt={img.source_filename || img.original_filename}
                   style={{
                     ...styles.stagingThumb,
@@ -264,9 +398,16 @@ export default function Upload({ onAlignComplete }: UploadProps) {
                     ×
                   </button>
                 )}
-                <span style={styles.stagingLabel}>
-                  {img.source_filename || img.original_filename}
-                </span>
+                <div style={styles.stagingLabelContainer}>
+                  <span style={styles.stagingLabel}>
+                    {img.source_filename || img.original_filename}
+                  </span>
+                  {img.photo_taken_at && (
+                    <span style={styles.stagingDate}>
+                      {new Date(img.photo_taken_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -291,9 +432,10 @@ export default function Upload({ onAlignComplete }: UploadProps) {
 
       {/* Aligning progress */}
       {stage === "aligning" && (
-        <div style={styles.progressContainer}>
+        <div data-testid="alignment-progress-container" style={styles.progressContainer}>
           <div style={styles.progressBarOuter}>
             <div
+              data-testid="alignment-progress-bar"
               style={{
                 ...styles.progressBarInner,
                 width: `${progressPercent}%`,
@@ -321,7 +463,74 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       )}
 
       {error && stage === "idle" && (
-        <p style={styles.error}>{error}</p>
+        <p data-testid="upload-error" style={styles.error}>{error}</p>
+      )}
+
+      {/* Webcam Modal */}
+      {isWebcamActive && (
+        <div
+          data-testid="webcam-modal"
+          style={styles.webcamModal}
+          onClick={(e) => {
+            // Close on backdrop click
+            if (e.target === e.currentTarget) {
+              stopWebcam();
+            }
+          }}
+        >
+          <div style={styles.webcamContainer}>
+            <div style={styles.webcamHeader}>
+              <h3 style={styles.webcamTitle}>Take a Photo</h3>
+              <button
+                data-testid="webcam-close-button"
+                style={styles.webcamCloseButton}
+                onClick={stopWebcam}
+              >
+                ×
+              </button>
+            </div>
+            {webcamError ? (
+              <div style={styles.webcamError}>
+                <p>{webcamError}</p>
+                <button style={styles.webcamButton} onClick={startWebcam}>
+                  Try Again
+                </button>
+              </div>
+            ) : (
+              <>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={styles.webcamVideo}
+                  data-testid="webcam-video"
+                  onLoadedMetadata={() => {
+                    // Ensure video plays when metadata loads
+                    if (videoRef.current) {
+                      videoRef.current.play().catch((err) => {
+                        console.error("Video play error on metadata:", err);
+                      });
+                    }
+                  }}
+                  onError={(e) => {
+                    console.error("Video error:", e);
+                    setWebcamError("Video error occurred");
+                  }}
+                />
+                <div style={styles.webcamControls}>
+                  <button
+                    data-testid="webcam-capture-button"
+                    style={styles.captureButton}
+                    onClick={capturePhoto}
+                  >
+                    📸 Capture
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

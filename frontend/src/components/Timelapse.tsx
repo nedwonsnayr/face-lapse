@@ -9,7 +9,7 @@ interface TimelapseProps {
 }
 
 export default function Timelapse({ images }: TimelapseProps) {
-  const [frameDuration, setFrameDuration] = useState(0.1);
+  const [frameDuration, setFrameDuration] = useState(0.05);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);

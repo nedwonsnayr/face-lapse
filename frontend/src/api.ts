@@ -17,6 +17,7 @@ export interface UploadedImage {
   id: number;
   original_filename: string;
   source_filename: string | null;
+  photo_taken_at: string | null;
   skipped?: boolean; // true if this is a duplicate
   existing_id?: number; // ID of the existing duplicate image
 }

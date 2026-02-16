@@ -26,10 +26,10 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={styles.container}>
-          <p style={styles.heading}>Something went wrong in {this.props.section}</p>
-          <p style={styles.message}>{this.state.error.message}</p>
-          <button style={styles.retry} onClick={this.handleRetry}>
+        <div data-testid="error-boundary" style={styles.container}>
+          <p data-testid="error-boundary-heading" style={styles.heading}>Something went wrong in {this.props.section}</p>
+          <p data-testid="error-boundary-message" style={styles.message}>{this.state.error.message}</p>
+          <button data-testid="error-boundary-retry" style={styles.retry} onClick={this.handleRetry}>
             Try Again
           </button>
         </div>

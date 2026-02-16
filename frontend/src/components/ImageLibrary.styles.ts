@@ -158,6 +158,35 @@ const styles: Record<string, React.CSSProperties> = {
   btnExcluded: { borderColor: "var(--text-muted)", color: "var(--text-muted)" },
   btnRealign: { borderColor: "var(--primary)", color: "var(--primary)" },
   btnDelete: { borderColor: "var(--danger)", color: "var(--danger)", marginLeft: "auto" },
+  previousControls: {
+    display: "flex",
+    gap: 12,
+    alignItems: "center",
+    marginBottom: 12,
+    flexWrap: "wrap",
+  },
+  searchInput: {
+    flex: "1 1 200px",
+    minWidth: 200,
+    padding: "6px 10px",
+    fontSize: 13,
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--bg)",
+    color: "var(--text)",
+  },
+  sortButton: {
+    padding: "6px 12px",
+    fontSize: 13,
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--bg)",
+    color: "var(--text)",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+  },
 };
 
 export default styles;
