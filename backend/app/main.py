@@ -53,11 +53,26 @@ def _ensure_tables():
     Base.metadata.create_all(bind=engine)
 
 
+def _run_migrations():
+    """Run database migrations."""
+    import sys
+    from pathlib import Path
+    
+    # Add project root to path so migrations can be imported
+    project_root = Path(__file__).parent.parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+    
+    from migrations.runner import run_migrations
+    run_migrations(engine)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     ensure_directories()
     _ensure_tables()
+    _run_migrations()
     log.info("Started — data dir: %s", DATA_DIR)
     yield
     log.info("Shutting down")

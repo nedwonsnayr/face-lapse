@@ -12,7 +12,7 @@ from typing import Generator, List
 log = logging.getLogger("face-lapse.images")
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -48,6 +48,15 @@ def _extract_numeric_part(filename: str) -> int:
     return int(m.group(1)) if m else 0
 
 
+def _calculate_file_hash(filepath: Path) -> str:
+    """Calculate MD5 hash of a file."""
+    hash_md5 = hashlib.md5()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
+
 @router.post("/upload")
 async def upload_images(
     files: list[UploadFile] = File(...),
@@ -64,6 +73,8 @@ async def upload_images(
     log.info("Upload request: %d file(s) — %s", len(files), [f.filename for f in files])
 
     saved_files: list[dict] = []
+    batch_hashes: dict[str, dict] = {}  # Track hashes within this batch to detect same-batch duplicates
+    
     for file in files:
         ext = Path(file.filename or "image.jpg").suffix.lower()
         if ext not in (".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp", ".tiff"):
@@ -74,6 +85,60 @@ async def upload_images(
         temp_path = ORIGINALS_DIR / temp_name
         content = await file.read()
         temp_path.write_bytes(content)
+
+        # Calculate file hash for duplicate detection
+        file_hash = _calculate_file_hash(temp_path)
+
+        # First check if this hash was already seen in this batch
+        if file_hash in batch_hashes:
+            # Duplicate within the same batch - delete temp file and skip
+            temp_path.unlink()
+            existing_in_batch = batch_hashes[file_hash]
+            log.info(
+                "Skipped duplicate in batch: %s (matches %s in same batch)",
+                source_filename,
+                existing_in_batch["source_filename"],
+            )
+            saved_files.append({
+                "temp_path": None,
+                "source_filename": source_filename,
+                "ext": ext,
+                "photo_taken_at": None,
+                "file_hash": file_hash,
+                "duplicate": True,
+                "existing_id": existing_in_batch.get("existing_id"),  # May be None if not yet in DB
+                "existing_filename": existing_in_batch.get("existing_filename") or existing_in_batch["source_filename"],
+            })
+            continue
+
+        # Check for duplicate in database by file_hash (indexed, fast)
+        existing_image = db.query(Image).filter(Image.file_hash == file_hash).first()
+        
+        if existing_image:
+            # Duplicate found in database - delete temp file and skip
+            temp_path.unlink()
+            log.info(
+                "Skipped duplicate: %s (matches existing %s)",
+                source_filename,
+                existing_image.original_filename,
+            )
+            saved_files.append({
+                "temp_path": None,
+                "source_filename": source_filename,
+                "ext": ext,
+                "photo_taken_at": None,
+                "file_hash": file_hash,
+                "duplicate": True,
+                "existing_id": existing_image.id,
+                "existing_filename": existing_image.original_filename,
+            })
+            # Track this in batch_hashes so subsequent duplicates in batch reference it
+            batch_hashes[file_hash] = {
+                "source_filename": source_filename,
+                "existing_id": existing_image.id,
+                "existing_filename": existing_image.original_filename,
+            }
+            continue
 
         # Extract date: try EXIF first, then parse from filename
         exif_date_str = extract_exif_date(str(temp_path))
@@ -91,7 +156,13 @@ async def upload_images(
             "source_filename": source_filename,
             "ext": ext,
             "photo_taken_at": photo_taken_at,
+            "file_hash": file_hash,
+            "duplicate": False,
         })
+        # Track this hash in batch_hashes for duplicate detection within batch
+        batch_hashes[file_hash] = {
+            "source_filename": source_filename,
+        }
 
     # Sort by photo date first (handles mixed filename formats like IMG_1234 + AirDrop UUIDs),
     # fall back to numeric filename part for files without dates
@@ -112,8 +183,46 @@ async def upload_images(
     )
 
     results = []
+    saved_count = 0
     for idx, info in enumerate(saved_files):
-        counter = start_counter + idx
+        # Handle duplicates
+        if info.get("duplicate"):
+            # For duplicates, we need to return the existing image's ID so the frontend
+            # can display the correct thumbnail. However, if existing_id is None
+            # (same-batch duplicate not yet in DB), we can't return a valid ID.
+            # In that case, we'll return -1 as a marker (frontend should handle this).
+            existing_id = info.get("existing_id")
+            if existing_id is None:
+                # Same-batch duplicate - the first occurrence will be saved, so we
+                # can't reference it yet. Return a placeholder.
+                log.warning(
+                    "Duplicate in batch without existing_id: %s",
+                    info["source_filename"]
+                )
+                results.append({
+                    "id": -1,  # Placeholder ID for same-batch duplicates
+                    "original_filename": info.get("existing_filename") or info["source_filename"],
+                    "source_filename": info["source_filename"],
+                    "skipped": True,
+                    "existing_id": None,
+                })
+            else:
+                log.info(
+                    "Returning duplicate response: source=%s, existing_id=%d, existing_filename=%s",
+                    info["source_filename"],
+                    existing_id,
+                    info["existing_filename"],
+                )
+                results.append({
+                    "id": existing_id,  # Use existing image's ID for thumbnail display
+                    "original_filename": info["existing_filename"],
+                    "source_filename": info["source_filename"],
+                    "skipped": True,
+                    "existing_id": existing_id,
+                })
+            continue
+
+        counter = start_counter + saved_count
         int_filename = f"{counter}{info['ext']}"
         original_path = ORIGINALS_DIR / int_filename
         Path(info["temp_path"]).rename(original_path)
@@ -126,17 +235,37 @@ async def upload_images(
             photo_taken_at=info["photo_taken_at"],
             face_detected=False,
             included_in_video=False,
+            file_hash=info["file_hash"],
         )
         db.add(image)
         db.flush()
+        log.info(
+            "Saved new image: ID=%d, filename=%s, source=%s, hash=%s",
+            image.id,
+            image.original_filename,
+            image.source_filename,
+            image.file_hash[:8] if image.file_hash else "None",
+        )
         results.append({
             "id": image.id,
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
+            "skipped": False,  # Explicitly mark as not skipped
         })
+        saved_count += 1
 
     db.commit()
-    log.info("Saved %d originals (not yet aligned)", len(results))
+    skipped_count = len(results) - saved_count
+    if skipped_count > 0:
+        log.info("Saved %d originals, skipped %d duplicates (not yet aligned)", saved_count, skipped_count)
+    else:
+        log.info("Saved %d originals (not yet aligned)", saved_count)
+    
+    # Log the response structure for debugging
+    log.info("Upload response: %d results", len(results))
+    for r in results:
+        log.info("  - ID=%s, skipped=%s, source=%s", r.get("id"), r.get("skipped"), r.get("source_filename"))
+    
     return results
 
 
@@ -144,15 +273,17 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
     """
     Generator that aligns each image and yields NDJSON progress lines.
     """
-    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     total = len(image_ids)
     all_results = []
     batch_start = time.time()
 
+    log.info("Align: received image_ids=%s", image_ids)
+
     try:
         for idx, image_id in enumerate(image_ids):
             t0 = time.time()
+            log.info("Align: processing image_id=%d", image_id)
             image = db.query(Image).filter(Image.id == image_id).first()
             if not image or not Path(image.original_path).exists():
                 item_result = {
@@ -191,6 +322,7 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
                 "error": result.error,
                 "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
             }
+            log.info("Align: returning result for image_id=%d -> result.id=%d, filename=%s", image_id, item_result["id"], item_result["original_filename"])
             all_results.append(item_result)
             yield json.dumps({"type": "progress", "current": idx + 1, "total": total, "result": item_result}) + "\n"
 
@@ -268,12 +400,22 @@ def list_images(request: Request, db: Session = Depends(get_db)):
     ]
 
     # ETag based on content hash — allows 304 Not Modified responses
-    body = json.dumps(payload, separators=(",", ":")).encode()
-    etag = f'"{hashlib.md5(body).hexdigest()}"'
+    # Serialize once and use the same bytes for both ETag and response body
+    body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    etag = f'"{hashlib.md5(body_bytes).hexdigest()}"'
     if request.headers.get("if-none-match") == etag:
-        return JSONResponse(status_code=304, content=None, headers={"ETag": etag})
+        # 304 Not Modified - no body, just headers
+        return Response(
+            status_code=304,
+            headers={"ETag": etag},
+        )
 
-    return JSONResponse(content=payload, headers={"ETag": etag})
+    # Use the pre-serialized JSON to ensure Content-Length matches actual body
+    return Response(
+        content=body_bytes,
+        media_type="application/json",
+        headers={"ETag": etag},
+    )
 
 
 class ReorderItem(BaseModel):

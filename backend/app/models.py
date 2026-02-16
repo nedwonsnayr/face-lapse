@@ -34,3 +34,6 @@ class Image(Base):
 
     # Manual sort order (lower = earlier in sequence). Null means use default sort.
     sort_order = Column(Integer, nullable=True, index=True)
+
+    # File hash for duplicate detection (MD5 hash of original file content)
+    file_hash = Column(String, nullable=True, index=True)

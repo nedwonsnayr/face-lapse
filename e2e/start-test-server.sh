@@ -17,6 +17,20 @@ export GLOG_minloglevel=2 2>/dev/null || true
 uvicorn backend.app.main:app --host 127.0.0.1 --port 8111 2>&1 | grep -v "inference_feedback_manager\|Feedback manager\|W0000" &
 BACKEND_PID=$!
 
+# Wait for backend to be ready (health check)
+echo "Waiting for backend to start..."
+for i in {1..30}; do
+  if curl -s http://127.0.0.1:8111/api/images > /dev/null 2>&1; then
+    echo "Backend is ready"
+    break
+  fi
+  if [ $i -eq 30 ]; then
+    echo "Backend failed to start within 30 seconds"
+    exit 1
+  fi
+  sleep 1
+done
+
 # Start frontend on port 5111, proxying to the test backend
 cd "$PROJECT_ROOT/frontend"
 VITE_API_PORT=8111 npx vite --port 5111 --strictPort &
