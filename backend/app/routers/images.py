@@ -20,6 +20,7 @@ from ..database import get_db, SessionLocal, Base, engine
 from ..models import Image
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
 from ..services.alignment import align_image, extract_exif_date, parse_date_from_filename
+from ..utils.date_interpolation import interpolate_and_store_dates
 
 router = APIRouter()
 
@@ -260,6 +261,21 @@ async def upload_images(
         log.info("Saved %d originals, skipped %d duplicates (not yet aligned)", saved_count, skipped_count)
     else:
         log.info("Saved %d originals (not yet aligned)", saved_count)
+    
+    # Interpolate dates for any newly saved images missing photo_taken_at
+    new_image_ids = [r["id"] for r in results if r.get("id") and r.get("id") > 0 and not r.get("skipped")]
+    if new_image_ids:
+        # Check if any of the new images are missing dates
+        images_without_dates = db.query(Image).filter(
+            Image.id.in_(new_image_ids),
+            Image.photo_taken_at.is_(None)
+        ).all()
+        
+        if images_without_dates:
+            # Interpolate dates for images missing them
+            updated_count = interpolate_and_store_dates(db, [img.id for img in images_without_dates])
+            if updated_count > 0:
+                log.info("Interpolated dates for %d newly uploaded images", updated_count)
     
     # Log the response structure for debugging
     log.info("Upload response: %d results", len(results))
