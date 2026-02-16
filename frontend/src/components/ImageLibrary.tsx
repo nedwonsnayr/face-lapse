@@ -99,6 +99,7 @@ function SortableCard({ img, deletingId, realigningId, onDelete, onToggle, onRea
       <div style={styles.cardActions}>
         {img.has_aligned && (
           <button
+            data-testid={`toggle-include-button-${img.id}`}
             style={{
               ...styles.btnSmall,
               ...(img.included_in_video ? styles.btnIncluded : styles.btnExcluded),
@@ -269,7 +270,7 @@ export default function ImageLibrary({
 
       {images.length === 0 ? (
         <div style={styles.empty}>
-          <p style={styles.emptyText}>
+          <p data-testid="empty-library-message" style={styles.emptyText}>
             No images yet. Upload some selfies to get started!
           </p>
         </div>
@@ -277,7 +278,7 @@ export default function ImageLibrary({
         <>
           {/* No Face Detected group */}
           {noFaceImages.length > 0 && (
-            <div style={styles.noFaceGroup}>
+            <div data-testid="no-face-group" style={styles.noFaceGroup}>
               <div style={styles.groupHeader}>
                 <button
                   style={styles.collapseBtn}
@@ -297,6 +298,7 @@ export default function ImageLibrary({
                   </span>
                 </button>
                 <button
+                  data-testid="dismiss-all-button"
                   style={styles.dismissNoFaceBtn}
                   onClick={handleDismissNoFace}
                   disabled={dismissingNoFace}
@@ -330,7 +332,7 @@ export default function ImageLibrary({
 
           {/* Just Uploaded group */}
           {recentImages.length > 0 && (
-            <div style={styles.group}>
+            <div data-testid="just-uploaded-group" style={styles.group}>
               <div style={styles.groupHeader}>
                 <button
                   style={styles.collapseBtn}
@@ -361,7 +363,7 @@ export default function ImageLibrary({
 
           {/* Previously Processed group */}
           {previousImages.length > 0 && (
-            <div style={styles.group}>
+            <div data-testid="previously-processed-group" style={styles.group}>
               <div style={styles.groupHeader}>
                 <button
                   style={styles.collapseBtn}

@@ -17,6 +17,8 @@ export interface UploadedImage {
   id: number;
   original_filename: string;
   source_filename: string | null;
+  skipped?: boolean; // true if this is a duplicate
+  existing_id?: number; // ID of the existing duplicate image
 }
 
 export interface AlignResult {
