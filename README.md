@@ -8,9 +8,11 @@ Align selfies by eye position and generate a timelapse video.
 
 ## Prerequisites
 
-- Python 3.12+ (via miniforge3)
+- Python 3.12+
 - Node.js 18+
-- FFmpeg (`brew install ffmpeg`)
+- FFmpeg
+  - macOS: `brew install ffmpeg`
+  - Linux: `sudo apt-get install ffmpeg` (Ubuntu/Debian) or use your distribution's package manager
 
 ## Setup
 
@@ -22,9 +24,9 @@ This creates a Python virtual environment, installs backend dependencies, and in
 
 ## Running
 
-**Quick launch** — double-click `Face Lapse.command` in Finder. It starts both servers, opens your browser, and stops everything when you close the terminal window. Drag it to the Dock for a shortcut.
+**macOS Quick launch** — double-click `Face Lapse.command` in Finder. It starts both servers, opens your browser, and stops everything when you close the terminal window. Drag it to the Dock for a shortcut.
 
-**Via Make:**
+**Via Make (macOS & Linux):**
 
 ```bash
 make start        # Start both backend and frontend
@@ -33,6 +35,8 @@ make frontend     # Start only the frontend (port 5173)
 ```
 
 Then open http://localhost:5173
+
+> **Note:** The `Face Lapse.command` file and `open` command used in startup scripts are macOS-specific. On Linux, use the `make` commands above.
 
 ## Usage
 
