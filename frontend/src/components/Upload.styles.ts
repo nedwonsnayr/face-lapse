@@ -129,6 +129,44 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "background 0.15s",
     width: "100%",
   },
+  alignBtnDisabled: {
+    background: "var(--border)",
+    color: "var(--text-muted)",
+    cursor: "not-allowed",
+    opacity: 0.6,
+  },
+  stagingThumbDuplicate: {
+    opacity: 0.5,
+    filter: "grayscale(100%)",
+  },
+  duplicateBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    padding: "2px 6px",
+    fontSize: 10,
+    fontWeight: 600,
+    background: "var(--warning)",
+    color: "#fff",
+    borderRadius: 4,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  duplicateMessage: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    marginBottom: 12,
+    background: "rgba(255, 193, 7, 0.1)",
+    border: "1px solid var(--warning)",
+    borderRadius: "var(--radius-sm)",
+    fontSize: 13,
+    color: "var(--text)",
+  },
+  duplicateIcon: {
+    fontSize: 16,
+  },
 
   /* Upload progress (inside dropzone) */
   uploadProgress: {

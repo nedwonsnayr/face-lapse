@@ -61,7 +61,11 @@ export default function Upload({ onAlignComplete }: UploadProps) {
   const handleRemoveStaged = useCallback(
     async (id: number) => {
       try {
-        await deleteImage(id);
+        // Only delete if it's not a duplicate (duplicates aren't in DB yet)
+        const image = stagedImages.find((img) => img.id === id);
+        if (image && !image.skipped) {
+          await deleteImage(id);
+        }
         setStagedImages((prev) => {
           const next = prev.filter((img) => img.id !== id);
           if (next.length === 0) setStage("idle");
@@ -71,19 +75,23 @@ export default function Upload({ onAlignComplete }: UploadProps) {
         console.error("Failed to remove image:", err);
       }
     },
-    []
+    [stagedImages]
   );
 
   const handleAlign = useCallback(async () => {
-    if (stagedImages.length === 0) return;
+    // Filter out duplicates - only align new images (must have valid ID > 0 and not skipped)
+    const imagesToAlign = stagedImages.filter((img) => !img.skipped && img.id > 0);
+    if (imagesToAlign.length === 0) return;
+
+    const imageIds = imagesToAlign.map((img) => img.id);
 
     setStage("aligning");
     setAlignCurrent(0);
-    setAlignTotal(stagedImages.length);
+    setAlignTotal(imagesToAlign.length);
 
     try {
       const result = await alignImages(
-        stagedImages.map((img) => img.id),
+        imageIds,
         (progress: AlignProgress) => {
           setAlignCurrent(progress.current);
           setAlignTotal(progress.total);
@@ -100,12 +108,15 @@ export default function Upload({ onAlignComplete }: UploadProps) {
   }, [stagedImages, onAlignComplete]);
 
   const handleCancelStaged = useCallback(async () => {
-    // Delete all staged images from the server
+    // Delete only non-duplicate staged images from the server
+    // (duplicates weren't created, so nothing to delete)
     for (const img of stagedImages) {
-      try {
-        await deleteImage(img.id);
-      } catch {
-        // best effort
+      if (!img.skipped) {
+        try {
+          await deleteImage(img.id);
+        } catch {
+          // best effort
+        }
       }
     }
     setStagedImages([]);
@@ -147,6 +158,11 @@ export default function Upload({ onAlignComplete }: UploadProps) {
     lastResult?.results.filter((r) => r.face_detected).length ?? 0;
   const failedCount =
     lastResult?.results.filter((r) => !r.face_detected).length ?? 0;
+
+  // Calculate duplicate count and non-duplicate count
+  const duplicateCount = stagedImages.filter((img) => img.skipped).length;
+  const nonDuplicateCount = stagedImages.filter((img) => !img.skipped).length;
+  const canAlign = nonDuplicateCount > 0;
 
   return (
     <div style={styles.section}>
@@ -191,7 +207,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
           ) : (
             <>
               <div style={styles.icon}>+</div>
-              <p style={styles.dropText}>Drop images here or click to browse</p>
+              <p data-testid="dropzone-text" style={styles.dropText}>Drop images here or click to browse</p>
               <p style={styles.dropSubtext}>Supports JPG, PNG, WebP, HEIC</p>
             </>
           )}
@@ -202,30 +218,52 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       {stage === "staging" && (
         <div style={styles.stagingContainer}>
           <div style={styles.stagingHeader}>
-            <span style={styles.stagingTitle}>
+            <span data-testid="staging-image-count" style={styles.stagingTitle}>
               {stagedImages.length} image{stagedImages.length !== 1 ? "s" : ""}{" "}
-              ready to align
+              {nonDuplicateCount > 0 && `(${nonDuplicateCount} ready to align)`}
             </span>
-            <button style={styles.cancelBtn} onClick={handleCancelStaged}>
+            <button data-testid="cancel-staged-button" style={styles.cancelBtn} onClick={handleCancelStaged}>
               Cancel
             </button>
           </div>
 
-          <div style={styles.stagingGrid}>
-            {stagedImages.map((img) => (
-              <div key={img.id} style={styles.stagingItem}>
+          {duplicateCount > 0 && (
+            <div data-testid="duplicate-warning" style={styles.duplicateMessage}>
+              <span style={styles.duplicateIcon}>⚠️</span>
+              <span>
+                {duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""} detected and will not be used for alignment.
+              </span>
+            </div>
+          )}
+
+          <div data-testid="staging-grid" style={styles.stagingGrid}>
+            {stagedImages.map((img, idx) => (
+              <div 
+                key={`${img.id}-${img.source_filename || img.original_filename}-${idx}`} 
+                data-testid={img.skipped ? "staging-item-duplicate" : "staging-item-new"}
+                style={styles.stagingItem}
+              >
                 <img
-                  src={getOriginalImageUrl(img.id)}
+                  src={img.id > 0 ? getOriginalImageUrl(img.id) : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
                   alt={img.source_filename || img.original_filename}
-                  style={styles.stagingThumb}
+                  style={{
+                    ...styles.stagingThumb,
+                    ...(img.skipped ? styles.stagingThumbDuplicate : {}),
+                  }}
                 />
-                <button
-                  style={styles.removeBtn}
-                  onClick={() => handleRemoveStaged(img.id)}
-                  title="Remove"
-                >
-                  ×
-                </button>
+                {img.skipped && (
+                  <div data-testid="duplicate-badge" style={styles.duplicateBadge}>Duplicate</div>
+                )}
+                {!img.skipped && (
+                  <button
+                    data-testid="remove-staged-button"
+                    style={styles.removeBtn}
+                    onClick={() => handleRemoveStaged(img.id)}
+                    title="Remove"
+                  >
+                    ×
+                  </button>
+                )}
                 <span style={styles.stagingLabel}>
                   {img.source_filename || img.original_filename}
                 </span>
@@ -233,8 +271,20 @@ export default function Upload({ onAlignComplete }: UploadProps) {
             ))}
           </div>
 
-          <button style={styles.alignBtn} onClick={handleAlign}>
-            Align Images
+          <button
+            data-testid="align-images-button"
+            style={{
+              ...styles.alignBtn,
+              ...(!canAlign ? styles.alignBtnDisabled : {}),
+            }}
+            onClick={handleAlign}
+            disabled={!canAlign}
+          >
+            {canAlign
+              ? "Align Images"
+              : duplicateCount > 0
+              ? "No new images to align"
+              : "Align Images"}
           </button>
         </div>
       )}
@@ -250,7 +300,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
               }}
             />
           </div>
-          <p style={styles.progressText}>
+          <p data-testid="alignment-progress" style={styles.progressText}>
             Aligning image {alignCurrent} of {alignTotal}...
           </p>
         </div>
@@ -258,12 +308,12 @@ export default function Upload({ onAlignComplete }: UploadProps) {
 
       {/* Result summary */}
       {lastResult && stage === "idle" && (
-        <div style={styles.results}>
-          <span style={styles.resultSuccess}>
+        <div data-testid="alignment-results" style={styles.results}>
+          <span data-testid="alignment-result-success" style={styles.resultSuccess}>
             {succeededCount} aligned successfully
           </span>
           {failedCount > 0 && (
-            <span style={styles.resultFail}>
+            <span data-testid="alignment-result-failed" style={styles.resultFail}>
               {failedCount} face not detected
             </span>
           )}
