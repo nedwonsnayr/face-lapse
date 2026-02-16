@@ -39,9 +39,8 @@ export default function App() {
     setRecentUploadIds(new Set());
   }, []);
 
-  const includedIds = images
-    .filter((img) => img.included_in_video && img.has_aligned)
-    .map((img) => img.id);
+  const includedImages = images
+    .filter((img) => img.included_in_video && img.has_aligned);
 
   return (
     <div style={styles.app}>
@@ -56,7 +55,7 @@ export default function App() {
         </ErrorBoundary>
 
         {loading ? (
-          <p style={styles.loading}>Loading library...</p>
+          <p data-testid="loading-message" style={styles.loading}>Loading library...</p>
         ) : (
           <>
             <ErrorBoundary section="Image Library">
@@ -68,7 +67,7 @@ export default function App() {
               />
             </ErrorBoundary>
             <ErrorBoundary section="Timelapse">
-              <Timelapse imageIds={includedIds} />
+              <Timelapse images={includedImages} />
             </ErrorBoundary>
           </>
         )}

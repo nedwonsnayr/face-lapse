@@ -213,15 +213,27 @@ export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
 }
 
 export async function generateVideo(
-  frameDuration: number
+  frameDuration: number,
+  showDates: boolean = false
 ): Promise<GenerateResponse> {
+  const params = new URLSearchParams({
+    frame_duration: frameDuration.toString(),
+  });
+  if (showDates) {
+    params.append("show_dates", "true");
+  }
   const res = await fetch(
-    `${API_BASE}/video/generate?frame_duration=${frameDuration}`,
+    `${API_BASE}/video/generate?${params.toString()}`,
     { method: "POST" }
   );
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.detail || "Video generation failed");
+    const errorMsg = data.detail || "Video generation failed";
+    // Provide more helpful error message if FFmpeg is not found
+    if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
+      throw new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
+    }
+    throw new Error(errorMsg);
   }
   return res.json();
 }

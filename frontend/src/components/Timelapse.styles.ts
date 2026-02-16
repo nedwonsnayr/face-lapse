@@ -104,6 +104,34 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     color: "var(--danger)",
   },
+  dateOverlay: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    padding: "6px 12px",
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#fff",
+    background: "rgba(0, 0, 0, 0.6)",
+    borderRadius: "var(--radius-sm)",
+    backdropFilter: "blur(4px)",
+    pointerEvents: "none",
+  },
+  toggleRow: {
+    marginBottom: 16,
+  },
+  toggleLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 14,
+    color: "var(--text)",
+    cursor: "pointer",
+  },
+  toggleInput: {
+    cursor: "pointer",
+    accentColor: "var(--primary)",
+  },
 };
 
 export default styles;
