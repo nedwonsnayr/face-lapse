@@ -134,8 +134,9 @@ export default function Timelapse({ images }: TimelapseProps) {
       <div data-testid="timelapse-player" style={styles.player}>
         {currentImage && (
           <img
+            key={`timelapse-${currentImage.id}-${currentImage.updated_at || currentImage.created_at || safeIndex}`}
             data-testid="timelapse-frame"
-            src={getAlignedImageUrl(currentImage.id)}
+            src={`${getAlignedImageUrl(currentImage.id)}?v=${currentImage.id}-${currentImage.updated_at ? new Date(currentImage.updated_at).getTime() : currentImage.created_at ? new Date(currentImage.created_at).getTime() : Date.now()}`}
             alt={`Frame ${safeIndex + 1}`}
             style={styles.frame}
           />

@@ -22,6 +22,8 @@ import {
   reorderImages,
   deleteNoFaceImages,
   realignImage,
+  realignAllImages,
+  AlignProgress,
 } from "../api";
 import styles from "./ImageLibrary.styles";
 
@@ -74,7 +76,7 @@ function SortableCard({ img, deletingId, realigningId, onDelete, onToggle, onRea
 
       {img.has_aligned ? (
         <img
-          src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+          src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.updated_at ? new Date(img.updated_at).getTime() : img.created_at ? new Date(img.created_at).getTime() : Date.now()}`}
           alt={img.original_filename}
           style={styles.thumbnail}
           loading="lazy"
@@ -143,6 +145,9 @@ export default function ImageLibrary({
 }: ImageLibraryProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
+  const [realigningAll, setRealigningAll] = useState(false);
+  const [realignAllCurrent, setRealignAllCurrent] = useState(0);
+  const [realignAllTotal, setRealignAllTotal] = useState(0);
   const [previousCollapsed, setPreviousCollapsed] = useState(true);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
   const [noFaceCollapsed, setNoFaceCollapsed] = useState(false);
@@ -185,6 +190,31 @@ export default function ImageLibrary({
       console.error("Re-align failed:", err);
     } finally {
       setRealigningId(null);
+    }
+  };
+
+  const handleRealignAll = async () => {
+    if (images.length === 0) return;
+    if (!confirm(`Realign all ${images.length} images? This may take a while.`)) return;
+    
+    setRealigningAll(true);
+    setRealignAllCurrent(0);
+    setRealignAllTotal(images.length);
+    
+    try {
+      const allImageIds = images.map((img) => img.id);
+      await realignAllImages(allImageIds, (progress: AlignProgress) => {
+        setRealignAllCurrent(progress.current);
+        setRealignAllTotal(progress.total);
+      });
+      onRefresh();
+    } catch (err) {
+      console.error("Realign all failed:", err);
+      alert("Realign all failed. Check console for details.");
+    } finally {
+      setRealigningAll(false);
+      setRealignAllCurrent(0);
+      setRealignAllTotal(0);
     }
   };
 
@@ -281,7 +311,7 @@ export default function ImageLibrary({
             <div key={img.id} style={{ ...styles.card, ...(img.included_in_video ? {} : styles.cardExcluded) }} data-testid={`previous-image-card-${img.id}`}>
               {img.has_aligned ? (
                 <img
-                  src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+                  src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.updated_at ? new Date(img.updated_at).getTime() : img.created_at ? new Date(img.created_at).getTime() : Date.now()}`}
                   alt={img.original_filename}
                   style={styles.thumbnail}
                   loading="lazy"
@@ -375,10 +405,28 @@ export default function ImageLibrary({
           Image Library{" "}
           <span style={styles.count}>({images.length} images)</span>
         </h2>
-        <div style={styles.stats}>
-          <span style={styles.statAligned}>{alignedCount} aligned</span>
-          {failedCount > 0 && (
-            <span style={styles.statFailed}>{failedCount} no face</span>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={styles.stats}>
+            <span style={styles.statAligned}>{alignedCount} aligned</span>
+            {failedCount > 0 && (
+              <span style={styles.statFailed}>{failedCount} no face</span>
+            )}
+          </div>
+          {images.length > 0 && (
+            <button
+              data-testid="realign-all-button"
+              style={{
+                ...styles.realignAllBtn,
+                ...(realigningAll ? styles.realignAllBtnDisabled : {}),
+              }}
+              onClick={handleRealignAll}
+              disabled={realigningAll}
+              title="Re-run face alignment on all images"
+            >
+              {realigningAll
+                ? `Realigning ${realignAllCurrent}/${realignAllTotal}...`
+                : "Realign All"}
+            </button>
           )}
         </div>
       </div>

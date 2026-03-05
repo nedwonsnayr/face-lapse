@@ -378,7 +378,7 @@ export default function Upload({ onAlignComplete }: UploadProps) {
                 style={styles.stagingItem}
               >
                 <img
-                  src={img.id > 0 ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.source_filename || img.original_filename}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
+                  src={img.id > 0 ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.created_at ? new Date(img.created_at).getTime() : img.photo_taken_at ? new Date(img.photo_taken_at).getTime() : Date.now()}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
                   alt={img.source_filename || img.original_filename}
                   style={{
                     ...styles.stagingThumb,
