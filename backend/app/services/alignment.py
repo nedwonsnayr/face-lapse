@@ -2,10 +2,16 @@
 
 import logging
 import math
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+# Suppress MediaPipe/TensorFlow Lite warnings before importing
+# These must be set before mediapipe is imported
+os.environ.setdefault("GLOG_minloglevel", "2")  # Suppress GLOG warnings (0=INFO, 1=WARNING, 2=ERROR, 3=FATAL)
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")  # Suppress TensorFlow warnings (0=all, 1=hide INFO, 2=hide INFO+WARNING)
 
 import cv2
 import mediapipe as mp

@@ -158,6 +158,22 @@ const styles: Record<string, React.CSSProperties> = {
   btnExcluded: { borderColor: "var(--text-muted)", color: "var(--text-muted)" },
   btnRealign: { borderColor: "var(--primary)", color: "var(--primary)" },
   btnDelete: { borderColor: "var(--danger)", color: "var(--danger)", marginLeft: "auto" },
+  realignAllBtn: {
+    padding: "6px 14px",
+    fontSize: 13,
+    fontWeight: 500,
+    border: "1px solid var(--primary)",
+    borderRadius: "var(--radius-sm)",
+    background: "var(--primary)",
+    color: "#fff",
+    cursor: "pointer",
+    transition: "all 0.15s",
+    whiteSpace: "nowrap",
+  },
+  realignAllBtnDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
+  },
   previousControls: {
     display: "flex",
     gap: 12,
