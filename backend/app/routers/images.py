@@ -17,20 +17,22 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal, Base, engine
-from ..models import Image
+from ..models import Image, User
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
 from ..services.alignment import align_image, extract_exif_date, parse_date_from_filename
+from ..services.storage import upload_file, download_file, delete_file, get_local_path_for_processing
 from ..utils.date_interpolation import interpolate_and_store_dates
+from ..auth import get_current_user
 
 router = APIRouter()
 
 
-def _get_next_counter(db: Session) -> int:
+def _get_next_counter(db: Session, user_id: int) -> int:
     """
-    Find the highest integer filename currently in the DB and return the next one.
+    Find the highest integer filename currently in the DB for this user and return the next one.
     E.g. if the highest is '42.heic', returns 43.
     """
-    all_filenames = db.query(Image.original_filename).all()
+    all_filenames = db.query(Image.original_filename).filter(Image.user_id == user_id).all()
     max_num = 0
     for (fname,) in all_filenames:
         stem = Path(fname).stem
@@ -62,6 +64,7 @@ def _calculate_file_hash(filepath: Path) -> str:
 async def upload_images(
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload one or more images and store originals (no alignment yet).
@@ -112,8 +115,11 @@ async def upload_images(
             })
             continue
 
-        # Check for duplicate in database by file_hash (indexed, fast)
-        existing_image = db.query(Image).filter(Image.file_hash == file_hash).first()
+        # Check for duplicate in database by file_hash (indexed, fast) - only for this user
+        existing_image = db.query(Image).filter(
+            Image.file_hash == file_hash,
+            Image.user_id == current_user.id
+        ).first()
         
         if existing_image:
             # Duplicate found in database - delete temp file and skip
@@ -173,7 +179,7 @@ async def upload_images(
     ))
 
     # Determine the starting counter
-    start_counter = _get_next_counter(db)
+    start_counter = _get_next_counter(db, current_user.id)
 
     log.info(
         "Upload: %d files received, numbering from %d (source: %s … %s)",
@@ -208,6 +214,7 @@ async def upload_images(
                     "original_filename": info.get("existing_filename") or info["source_filename"],
                     "source_filename": info["source_filename"],
                     "photo_taken_at": None,  # Can't determine date for same-batch duplicate yet
+                    "created_at": None,  # Can't determine date for same-batch duplicate yet
                     "skipped": True,
                     "existing_id": None,
                 })
@@ -218,13 +225,14 @@ async def upload_images(
                     existing_id,
                     info["existing_filename"],
                 )
-                # Get the existing image to include its photo_taken_at
+                # Get the existing image to include its photo_taken_at and created_at
                 existing_image = db.query(Image).filter(Image.id == existing_id).first()
                 results.append({
                     "id": existing_id,  # Use existing image's ID for thumbnail display
                     "original_filename": info["existing_filename"],
                     "source_filename": info["source_filename"],
                     "photo_taken_at": existing_image.photo_taken_at.isoformat() if existing_image and existing_image.photo_taken_at else None,
+                    "created_at": existing_image.created_at.isoformat() if existing_image and existing_image.created_at else None,
                     "skipped": True,
                     "existing_id": existing_id,
                 })
@@ -235,10 +243,19 @@ async def upload_images(
         original_path = ORIGINALS_DIR / int_filename
         Path(info["temp_path"]).rename(original_path)
 
+        # Upload to storage (local or cloud)
+        storage_key = upload_file(
+            original_path,
+            int_filename,
+            user_id=current_user.id,
+            directory="originals"
+        )
+        
         image = Image(
+            user_id=current_user.id,
             original_filename=int_filename,
             source_filename=info["source_filename"],
-            original_path=str(original_path),
+            original_path=storage_key,  # Now stores storage key instead of local path
             aligned_path=None,
             photo_taken_at=info["photo_taken_at"],
             face_detected=False,
@@ -259,6 +276,7 @@ async def upload_images(
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
             "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
+            "created_at": image.created_at.isoformat() if image.created_at else None,
             "skipped": False,  # Explicitly mark as not skipped
         })
         saved_count += 1
@@ -270,14 +288,15 @@ async def upload_images(
     else:
         log.info("Saved %d originals (not yet aligned)", saved_count)
     
-    # Interpolate dates for any newly saved images missing photo_taken_at
-    new_image_ids = [r["id"] for r in results if r.get("id") and r.get("id") > 0 and not r.get("skipped")]
-    if new_image_ids:
-        # Check if any of the new images are missing dates
-        images_without_dates = db.query(Image).filter(
-            Image.id.in_(new_image_ids),
-            Image.photo_taken_at.is_(None)
-        ).all()
+        # Interpolate dates for any newly saved images missing photo_taken_at
+        new_image_ids = [r["id"] for r in results if r.get("id") and r.get("id") > 0 and not r.get("skipped")]
+        if new_image_ids:
+            # Check if any of the new images are missing dates (only for this user)
+            images_without_dates = db.query(Image).filter(
+                Image.id.in_(new_image_ids),
+                Image.user_id == current_user.id,
+                Image.photo_taken_at.is_(None)
+            ).all()
         
         if images_without_dates:
             # Interpolate dates for images missing them
@@ -293,7 +312,7 @@ async def upload_images(
     return results
 
 
-def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
+def _align_images_stream(image_ids: list[int], user_id: int) -> Generator[str, None, None]:
     """
     Generator that aligns each image and yields NDJSON progress lines.
     """
@@ -302,14 +321,15 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
     all_results = []
     batch_start = time.time()
 
-    log.info("Align: received image_ids=%s", image_ids)
+    log.info("Align: received image_ids=%s for user_id=%d", image_ids, user_id)
 
     try:
         for idx, image_id in enumerate(image_ids):
             t0 = time.time()
             log.info("Align: processing image_id=%d", image_id)
-            image = db.query(Image).filter(Image.id == image_id).first()
-            if not image or not Path(image.original_path).exists():
+            # Filter by user_id to ensure users can only align their own images
+            image = db.query(Image).filter(Image.id == image_id, Image.user_id == user_id).first()
+            if not image:
                 item_result = {
                     "id": image_id,
                     "original_filename": image.original_filename if image else "?",
@@ -320,9 +340,32 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
                 yield json.dumps({"type": "progress", "current": idx + 1, "total": total, "result": item_result}) + "\n"
                 continue
 
+            # Get local path for processing (downloads from cloud if needed)
+            original_local_path = get_local_path_for_processing(image.original_path, user_id)
+            
             stem = Path(image.original_filename).stem
-            aligned_path = ALIGNED_DIR / f"{stem}.jpg"
-            result = align_image(str(image.original_path), str(aligned_path))
+            aligned_filename = f"{stem}.jpg"
+            
+            # Create temp aligned file
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir()) / "face-lapse-alignment"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            temp_aligned_path = temp_dir / aligned_filename
+            
+            result = align_image(str(original_local_path), str(temp_aligned_path))
+            
+            # Upload aligned image to storage
+            if result.success:
+                aligned_storage_key = upload_file(
+                    temp_aligned_path,
+                    aligned_filename,
+                    user_id=user_id,
+                    directory="aligned"
+                )
+                # Clean up temp file
+                temp_aligned_path.unlink(missing_ok=True)
+            else:
+                aligned_storage_key = None
 
             elapsed = time.time() - t0
             status = "OK" if result.success else f"FAIL ({result.error})"
@@ -331,7 +374,7 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
                 idx + 1, total, image.original_filename, elapsed, status,
             )
 
-            image.aligned_path = str(aligned_path) if result.success else None
+            image.aligned_path = aligned_storage_key if result.success else None
             image.left_eye_x = result.left_eye[0] if result.left_eye else None
             image.left_eye_y = result.left_eye[1] if result.left_eye else None
             image.right_eye_x = result.right_eye[0] if result.right_eye else None
@@ -373,7 +416,10 @@ class AlignRequest(BaseModel):
 
 
 @router.post("/align")
-def align_images(body: AlignRequest):
+def align_images(
+    body: AlignRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Align one or more uploaded images by ID.
     Returns an NDJSON stream with per-image progress updates.
@@ -381,9 +427,9 @@ def align_images(body: AlignRequest):
     if not body.image_ids:
         raise HTTPException(status_code=400, detail="No image IDs provided")
 
-    log.info("Align: %d images requested", len(body.image_ids))
+    log.info("Align: %d images requested for user_id=%d", len(body.image_ids), current_user.id)
     return StreamingResponse(
-        _align_images_stream(body.image_ids),
+        _align_images_stream(body.image_ids, current_user.id),
         media_type="application/x-ndjson",
     )
 
@@ -404,9 +450,13 @@ def _sort_images(images: list) -> list:
 
 
 @router.get("")
-def list_images(request: Request, db: Session = Depends(get_db)):
-    """List all images sorted by: manual sort_order, then numeric filename, then date."""
-    images = db.query(Image).all()
+def list_images(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all images for the current user, sorted by: manual sort_order, then numeric filename, then date."""
+    images = db.query(Image).filter(Image.user_id == current_user.id).all()
     images = _sort_images(images)
     payload = [
         {
@@ -417,6 +467,7 @@ def list_images(request: Request, db: Session = Depends(get_db)):
             "included_in_video": img.included_in_video,
             "photo_taken_at": img.photo_taken_at.isoformat() if img.photo_taken_at else None,
             "created_at": img.created_at.isoformat() if img.created_at else None,
+            "updated_at": img.updated_at.isoformat() if img.updated_at else None,
             "has_aligned": img.aligned_path is not None,
             "sort_order": img.sort_order,
         }
@@ -451,10 +502,12 @@ class ReorderItem(BaseModel):
 def reorder_images(
     items: List[ReorderItem] = Body(...),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Update sort_order for a batch of images to persist manual reordering."""
     for item in items:
-        image = db.query(Image).filter(Image.id == item.id).first()
+        # Only allow reordering own images
+        image = db.query(Image).filter(Image.id == item.id, Image.user_id == current_user.id).first()
         if image:
             image.sort_order = item.sort_order
     db.commit()
@@ -462,16 +515,28 @@ def reorder_images(
 
 
 @router.delete("/no-face")
-def delete_no_face_images(db: Session = Depends(get_db)):
+def delete_no_face_images(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Delete all images where no face was detected, along with their files."""
-    images = db.query(Image).filter(Image.face_detected == False).all()  # noqa: E712
+    images = db.query(Image).filter(
+        Image.face_detected == False,  # noqa: E712
+        Image.user_id == current_user.id
+    ).all()
     deleted_count = 0
     for img in images:
-        for path_str in [img.original_path, img.aligned_path]:
-            if path_str:
-                p = Path(path_str)
-                if p.exists():
-                    p.unlink()
+        # Delete from storage (local or cloud)
+        if img.original_path:
+            try:
+                delete_file(img.original_path, user_id=current_user.id)
+            except Exception as e:
+                log.warning(f"Failed to delete original {img.original_path}: {e}")
+        if img.aligned_path:
+            try:
+                delete_file(img.aligned_path, user_id=current_user.id)
+            except Exception as e:
+                log.warning(f"Failed to delete aligned {img.aligned_path}: {e}")
         db.delete(img)
         deleted_count += 1
     db.commit()
@@ -480,47 +545,94 @@ def delete_no_face_images(db: Session = Depends(get_db)):
 
 
 @router.get("/{image_id}/aligned")
-def get_aligned_image(image_id: int, db: Session = Depends(get_db)):
+def get_aligned_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Serve the aligned version of an image."""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.id == image_id, Image.user_id == current_user.id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    if not image.aligned_path or not Path(image.aligned_path).exists():
+    if not image.aligned_path:
         raise HTTPException(status_code=404, detail="Aligned image not available")
+    
+    # Get local path for serving (downloads from cloud if needed)
+    local_path = get_local_path_for_processing(image.aligned_path, current_user.id)
+    if not local_path.exists():
+        raise HTTPException(status_code=404, detail="Aligned image file not found")
+    
+    # Generate ETag based on file modification time and image updated_at for cache validation
+    import hashlib
+    import os
+    file_stat = local_path.stat()
+    etag_data = f"{file_stat.st_mtime}-{image.updated_at.isoformat() if image.updated_at else ''}"
+    etag = hashlib.md5(etag_data.encode()).hexdigest()
+    
     return FileResponse(
-        image.aligned_path,
+        local_path,
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={
+            "Cache-Control": "public, max-age=3600",  # Reduced from 1 year, removed immutable
+            "ETag": f'"{etag}"',
+        },
     )
 
 
 @router.get("/{image_id}/original")
-def get_original_image(image_id: int, db: Session = Depends(get_db)):
+def get_original_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Serve the original version of an image."""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.id == image_id, Image.user_id == current_user.id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    if not Path(image.original_path).exists():
-        raise HTTPException(status_code=404, detail="Original image not found")
+    
+    # Get local path for serving (downloads from cloud if needed)
+    local_path = get_local_path_for_processing(image.original_path, current_user.id)
+    if not local_path.exists():
+        raise HTTPException(status_code=404, detail="Original image file not found")
+    
+    # Generate ETag based on file hash and updated_at timestamp for cache validation
+    import hashlib
+    import os
+    file_stat = local_path.stat()
+    etag_data = f"{image.file_hash or ''}-{file_stat.st_mtime}-{image.updated_at.isoformat() if image.updated_at else ''}"
+    etag = hashlib.md5(etag_data.encode()).hexdigest()
+    
     return FileResponse(
-        image.original_path,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        local_path,
+        headers={
+            "Cache-Control": "public, max-age=3600",  # Reduced from 1 year, removed immutable
+            "ETag": f'"{etag}"',
+        },
     )
 
 
 @router.delete("/{image_id}")
-def delete_image(image_id: int, db: Session = Depends(get_db)):
+def delete_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Delete an image and its files from the library."""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.id == image_id, Image.user_id == current_user.id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    # Delete files
-    for path_str in [image.original_path, image.aligned_path]:
-        if path_str:
-            p = Path(path_str)
-            if p.exists():
-                p.unlink()
+    # Delete files from storage
+    if image.original_path:
+        try:
+            delete_file(image.original_path, user_id=current_user.id)
+        except Exception as e:
+            log.warning(f"Failed to delete original {image.original_path}: {e}")
+    if image.aligned_path:
+        try:
+            delete_file(image.aligned_path, user_id=current_user.id)
+        except Exception as e:
+            log.warning(f"Failed to delete aligned {image.aligned_path}: {e}")
 
     db.delete(image)
     db.commit()
@@ -529,9 +641,13 @@ def delete_image(image_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{image_id}/toggle")
-def toggle_image_inclusion(image_id: int, db: Session = Depends(get_db)):
+def toggle_image_inclusion(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Toggle whether an image is included in video generation."""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.id == image_id, Image.user_id == current_user.id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
@@ -541,19 +657,52 @@ def toggle_image_inclusion(image_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{image_id}/realign")
-def realign_image(image_id: int, db: Session = Depends(get_db)):
+def realign_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Re-run face alignment on an existing image."""
-    image = db.query(Image).filter(Image.id == image_id).first()
+    image = db.query(Image).filter(Image.id == image_id, Image.user_id == current_user.id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
-    if not Path(image.original_path).exists():
-        raise HTTPException(status_code=404, detail="Original image not found on disk")
+    
+    # Get local path for processing (downloads from cloud if needed)
+    original_local_path = get_local_path_for_processing(image.original_path, current_user.id)
+    if not original_local_path.exists():
+        raise HTTPException(status_code=404, detail="Original image not found")
 
     stem = Path(image.original_filename).stem
-    aligned_path = ALIGNED_DIR / f"{stem}.jpg"
-    result = align_image(str(image.original_path), str(aligned_path))
+    aligned_filename = f"{stem}.jpg"
+    
+    # Create temp aligned file
+    import tempfile
+    temp_dir = Path(tempfile.gettempdir()) / "face-lapse-alignment"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    temp_aligned_path = temp_dir / aligned_filename
+    
+    result = align_image(str(original_local_path), str(temp_aligned_path))
+    
+    # Upload aligned image to storage
+    if result.success:
+        aligned_storage_key = upload_file(
+            temp_aligned_path,
+            aligned_filename,
+            user_id=current_user.id,
+            directory="aligned"
+        )
+        # Clean up temp file
+        temp_aligned_path.unlink(missing_ok=True)
+        # Delete old aligned image if it exists
+        if image.aligned_path:
+            try:
+                delete_file(image.aligned_path, user_id=current_user.id)
+            except Exception:
+                pass
+    else:
+        aligned_storage_key = None
 
-    image.aligned_path = str(aligned_path) if result.success else None
+    image.aligned_path = aligned_storage_key if result.success else None
     image.left_eye_x = result.left_eye[0] if result.left_eye else None
     image.left_eye_y = result.left_eye[1] if result.left_eye else None
     image.right_eye_x = result.right_eye[0] if result.right_eye else None
