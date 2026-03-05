@@ -68,3 +68,40 @@ All data is stored in the `data/` directory (git-ignored):
 - **Alignment**: An affine transform (rotate, scale, translate) maps each face so the eyes land at consistent positions across all images.
 - **Sorting**: Images are sorted by photo date (EXIF `DateTimeOriginal`, then filename date parsing for AirDrop-style names), with numeric filename as a fallback.
 - **Video generation**: FFmpeg stitches the aligned images into an MP4 at the configured frame rate.
+
+## Deployment
+
+### GitHub Pages (Frontend)
+
+The frontend can be deployed to GitHub Pages. See `.github/workflows/deploy-pages.yml` for the deployment workflow.
+
+**Setup:**
+1. Enable GitHub Pages in your repository settings
+2. Set GitHub Actions secrets:
+   - `VITE_API_BASE`: Your backend API URL (e.g., `https://your-backend.railway.app/api`)
+   - `VITE_REQUIRE_AUTH`: Set to `true` for production
+
+### Backend Deployment
+
+The backend can be deployed to Railway, Render, or any platform that supports Docker/Python.
+
+**Required Environment Variables:**
+- `DATABASE_URL`: PostgreSQL connection string (or leave unset for SQLite in local dev)
+- `REQUIRE_AUTH`: Set to `true` in production
+- `USE_CLOUD_STORAGE`: Set to `true` in production
+- `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_ENDPOINT`: Cloudflare R2 credentials
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`: GitHub OAuth app credentials
+- `JWT_SECRET_KEY`: Secret key for JWT tokens (use a strong random string)
+- `CORS_ORIGINS`: Comma-separated list of allowed origins (your GitHub Pages URL)
+
+See `backend/.env.example` for all available environment variables.
+
+**Local Development:**
+- Authentication is disabled by default (`REQUIRE_AUTH=false`)
+- Uses SQLite database and local file storage
+- No login required for testing
+
+**Production:**
+- Authentication required via GitHub OAuth
+- Uses PostgreSQL database and cloud storage (R2)
+- Users must sign in to access their images
