@@ -1,4 +1,6 @@
-const API_BASE = "/api";
+// API base URL - use environment variable in production, default to /api for local dev
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+const REQUIRE_AUTH = import.meta.env.VITE_REQUIRE_AUTH === "true";
 
 export interface ImageRecord {
   id: number;
@@ -8,6 +10,7 @@ export interface ImageRecord {
   included_in_video: boolean;
   photo_taken_at: string | null;
   created_at: string | null;
+  updated_at: string | null;
   has_aligned: boolean;
   sort_order: number | null;
 }
@@ -18,6 +21,7 @@ export interface UploadedImage {
   original_filename: string;
   source_filename: string | null;
   photo_taken_at: string | null;
+  created_at: string | null;
   skipped?: boolean; // true if this is a duplicate
   existing_id?: number; // ID of the existing duplicate image
 }
@@ -207,6 +211,17 @@ export async function realignImage(
   return res.json();
 }
 
+/**
+ * Realign all images in the library. Uses the same streaming alignment endpoint.
+ * `onProgress` fires for each image as it's aligned server-side.
+ */
+export async function realignAllImages(
+  imageIds: number[],
+  onProgress?: (progress: AlignProgress) => void
+): Promise<AlignResponse> {
+  return alignImages(imageIds, onProgress);
+}
+
 export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
   const res = await fetch(`${API_BASE}/images/no-face`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete no-face images");
@@ -249,5 +264,128 @@ export function getAlignedImageUrl(id: number): string {
 
 export function getOriginalImageUrl(id: number): string {
   return `${API_BASE}/images/${id}/original`;
+}
+
+// Auth API
+export interface UserInfo {
+  id: number;
+  github_username: string | null;
+  github_email: string | null;
+  github_avatar_url: string | null;
+}
+
+// Get JWT token from localStorage
+function getAuthToken(): string | null {
+  return localStorage.getItem("auth_token");
+}
+
+// Set JWT token in localStorage
+function setAuthToken(token: string): void {
+  localStorage.setItem("auth_token", token);
+}
+
+// Remove JWT token from localStorage
+function removeAuthToken(): void {
+  localStorage.removeItem("auth_token");
+}
+
+// Store original fetch before overriding
+const originalFetch = window.fetch;
+
+// Add auth token to fetch requests
+async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken();
+  const headers = new Headers(options.headers);
+  
+  if (token && REQUIRE_AUTH) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  
+  // Use originalFetch to avoid infinite recursion
+  return originalFetch(url, { ...options, headers });
+}
+
+// Override global fetch for API calls
+window.fetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+  const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : (url as Request).url;
+  
+  // Only add auth for API calls
+  if (urlStr && (urlStr.startsWith(API_BASE) || urlStr.startsWith("/api"))) {
+    return fetchWithAuth(urlStr, init);
+  }
+  
+  return originalFetch(url, init);
+};
+
+export async function getCurrentUser(): Promise<UserInfo | null> {
+  if (!REQUIRE_AUTH) {
+    // Local dev mode - return null (no auth needed)
+    return null;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`);
+    if (!res.ok) {
+      return null;
+    }
+    return res.json();
+  } catch (err) {
+    console.error("Failed to get current user:", err);
+    return null;
+  }
+}
+
+export async function loginWithGitHub(): Promise<void> {
+  if (!REQUIRE_AUTH) {
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/auth/github`);
+    if (!res.ok) {
+      throw new Error("Failed to initiate GitHub OAuth");
+    }
+    const data = await res.json();
+    // Redirect to GitHub OAuth
+    window.location.href = data.auth_url;
+  } catch (err) {
+    console.error("GitHub login failed:", err);
+    throw err;
+  }
+}
+
+export async function logout(): Promise<void> {
+  if (!REQUIRE_AUTH) {
+    return;
+  }
+  
+  try {
+    await fetch(`${API_BASE}/auth/logout`, { method: "POST" });
+  } catch (err) {
+    console.error("Logout failed:", err);
+  } finally {
+    removeAuthToken();
+  }
+}
+
+// Check if auth is required
+export function isAuthRequired(): boolean {
+  return REQUIRE_AUTH;
+}
+
+// Handle OAuth callback - extract token from URL
+export function handleAuthCallback(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  
+  if (token) {
+    setAuthToken(token);
+    // Remove token from URL
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, "", newUrl);
+    return token;
+  }
+  
+  return null;
 }
 

@@ -3,6 +3,8 @@ import Upload from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
 import Timelapse from "./components/Timelapse";
 import ErrorBoundary from "./components/ErrorBoundary";
+import AuthGuard from "./components/AuthGuard";
+import UserProfile from "./components/UserProfile";
 import { ImageRecord, listImages, AlignResponse } from "./api";
 
 export default function App() {
@@ -43,36 +45,43 @@ export default function App() {
     .filter((img) => img.included_in_video && img.has_aligned);
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <h1 style={styles.title}>Face Lapse</h1>
-        <p style={styles.subtitle}>Selfie timelapse generator</p>
-      </header>
+    <AuthGuard>
+      <div style={styles.app}>
+        <header style={styles.header}>
+          <div style={styles.headerContent}>
+            <div>
+              <h1 style={styles.title}>Face Lapse</h1>
+              <p style={styles.subtitle}>Selfie timelapse generator</p>
+            </div>
+            <UserProfile />
+          </div>
+        </header>
 
-      <main style={styles.main}>
-        <ErrorBoundary section="Upload">
-          <Upload onAlignComplete={handleAlignComplete} />
-        </ErrorBoundary>
+        <main style={styles.main}>
+          <ErrorBoundary section="Upload">
+            <Upload onAlignComplete={handleAlignComplete} />
+          </ErrorBoundary>
 
-        {loading ? (
-          <p data-testid="loading-message" style={styles.loading}>Loading library...</p>
-        ) : (
-          <>
-            <ErrorBoundary section="Image Library">
-              <ImageLibrary
-                images={images}
-                recentUploadIds={recentUploadIds}
-                onRefresh={fetchImages}
-                onDismissRecent={handleDismissRecent}
-              />
-            </ErrorBoundary>
-            <ErrorBoundary section="Timelapse">
-              <Timelapse images={includedImages} />
-            </ErrorBoundary>
-          </>
-        )}
-      </main>
-    </div>
+          {loading ? (
+            <p data-testid="loading-message" style={styles.loading}>Loading library...</p>
+          ) : (
+            <>
+              <ErrorBoundary section="Image Library">
+                <ImageLibrary
+                  images={images}
+                  recentUploadIds={recentUploadIds}
+                  onRefresh={fetchImages}
+                  onDismissRecent={handleDismissRecent}
+                />
+              </ErrorBoundary>
+              <ErrorBoundary section="Timelapse">
+                <Timelapse images={includedImages} />
+              </ErrorBoundary>
+            </>
+          )}
+        </main>
+      </div>
+    </AuthGuard>
   );
 }
 
@@ -83,9 +92,15 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "24px 20px 64px",
   },
   header: {
-    textAlign: "center",
     marginBottom: 40,
     paddingTop: 24,
+  },
+  headerContent: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+    gap: 16,
   },
   title: {
     fontSize: 32,
