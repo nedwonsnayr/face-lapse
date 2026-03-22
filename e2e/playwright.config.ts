@@ -24,7 +24,7 @@ export default defineConfig({
     command: `bash ${path.join(__dirname, "start-test-server.sh")}`,
     port: 5111,
     reuseExistingServer: false,
-    timeout: 30_000,
+    timeout: 120_000,
     cwd: PROJECT_ROOT,
   },
 });
