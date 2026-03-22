@@ -24,7 +24,8 @@ export default defineConfig({
     command: `bash ${path.join(__dirname, "start-test-server.sh")}`,
     port: 5111,
     reuseExistingServer: false,
-    timeout: 120_000,
+    // CI can wait up to 120s for backend + 60s for Vite before port 5111 is ready
+    timeout: 200_000,
     cwd: PROJECT_ROOT,
   },
 });
