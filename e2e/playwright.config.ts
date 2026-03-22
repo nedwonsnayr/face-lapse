@@ -8,7 +8,7 @@ export default defineConfig({
   testMatch: "*.spec.ts",
   timeout: 120_000, // 2 minutes for video generation in CI
   retries: 0,
-  reporter: [["html", { outputFolder: "playwright-report" }]],
+  reporter: [["list"],["html", { outputFolder: "playwright-report" }]],
   use: {
     baseURL: "http://localhost:5111",
     headless: true,
