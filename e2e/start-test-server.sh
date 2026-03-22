@@ -20,7 +20,7 @@ FRONTEND_LOG="$E2E_LOG_DIR/frontend.log"
 cd "$PROJECT_ROOT"
 source .venv/bin/activate
 export GLOG_minloglevel=2 2>/dev/null || true
-uvicorn backend.app.main:app --host 127.0.0.1 --port 8111 >>"$BACKEND_LOG" 2>&1 &
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8111 >>"$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
 
 # Wait for backend to be ready (health check). CI runners (GitHub sets CI=true) can be slow to
