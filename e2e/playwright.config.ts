@@ -8,7 +8,7 @@ export default defineConfig({
   testMatch: "*.spec.ts",
   timeout: 120_000, // 2 minutes for video generation in CI
   retries: 0,
-  reporter: [["html", { outputFolder: "playwright-report" }]],
+  reporter: [["list"],["html", { outputFolder: "playwright-report" }]],
   use: {
     baseURL: "http://localhost:5111",
     headless: true,
@@ -24,7 +24,8 @@ export default defineConfig({
     command: `bash ${path.join(__dirname, "start-test-server.sh")}`,
     port: 5111,
     reuseExistingServer: false,
-    timeout: 30_000,
+    // CI can wait up to 120s for backend + 60s for Vite before port 5111 is ready
+    timeout: 200_000,
     cwd: PROJECT_ROOT,
   },
 });
