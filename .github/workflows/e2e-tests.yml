@@ -14,16 +14,16 @@ jobs:
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python 3.12
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '18'
 
@@ -34,7 +34,7 @@ jobs:
 
       - name: Cache Python dependencies
         id: cache-python
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .venv
           key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('backend/requirements.txt') }}
@@ -50,7 +50,7 @@ jobs:
 
       - name: Cache frontend dependencies
         id: cache-frontend
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: frontend/node_modules
           key: ${{ runner.os }}-frontend-${{ hashFiles('frontend/package-lock.json') }}
@@ -65,7 +65,7 @@ jobs:
 
       - name: Cache E2E dependencies
         id: cache-e2e
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: e2e/node_modules
           key: ${{ runner.os }}-e2e-${{ hashFiles('e2e/package-lock.json') }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: cache-playwright
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
@@ -98,9 +98,103 @@ jobs:
           cd e2e
           npx playwright test --config playwright.config.ts
 
+      - name: Add E2E metrics to workflow summary
+        if: always()
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+          const resultsPath = path.join(process.cwd(), "e2e", "test-results.json");
+
+          const writeLines = (lines) => {
+            fs.appendFileSync(summaryPath, lines.join("\n") + "\n");
+          };
+
+          if (!fs.existsSync(resultsPath)) {
+            writeLines([
+              "## Playwright E2E Results",
+              "",
+              "No `test-results.json` file was produced. Tests may have failed before the reporter could write output.",
+            ]);
+            process.exit(0);
+          }
+
+          const report = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
+
+          const totals = {
+            passed: 0,
+            failed: 0,
+            skipped: 0,
+            flaky: 0,
+            timedOut: 0,
+            interrupted: 0,
+          };
+
+          const durationsMs = [];
+
+          const visitSuite = (suite) => {
+            for (const spec of suite.specs || []) {
+              for (const test of spec.tests || []) {
+                const outcomes = new Set();
+                for (const result of test.results || []) {
+                  outcomes.add(result.status);
+                  if (typeof result.duration === "number") {
+                    durationsMs.push(result.duration);
+                  }
+                }
+
+                if (outcomes.has("failed")) totals.failed += 1;
+                else if (outcomes.has("timedOut")) totals.timedOut += 1;
+                else if (outcomes.has("interrupted")) totals.interrupted += 1;
+                else if (outcomes.has("skipped")) totals.skipped += 1;
+                else if (outcomes.has("passed")) totals.passed += 1;
+
+                if (test.outcome === "flaky") {
+                  totals.flaky += 1;
+                }
+              }
+            }
+            for (const child of suite.suites || []) visitSuite(child);
+          };
+
+          for (const suite of report.suites || []) visitSuite(suite);
+
+          const totalTests =
+            totals.passed +
+            totals.failed +
+            totals.skipped +
+            totals.timedOut +
+            totals.interrupted;
+
+          const totalDurationMs = durationsMs.reduce((sum, ms) => sum + ms, 0);
+          const avgDurationMs = durationsMs.length
+            ? Math.round(totalDurationMs / durationsMs.length)
+            : 0;
+
+          const toSeconds = (ms) => (ms / 1000).toFixed(2);
+
+          writeLines([
+            "## Playwright E2E Results",
+            "",
+            "| Metric | Value |",
+            "|---|---:|",
+            `| Total tests | ${totalTests} |`,
+            `| Passed | ${totals.passed} |`,
+            `| Failed | ${totals.failed} |`,
+            `| Flaky | ${totals.flaky} |`,
+            `| Skipped | ${totals.skipped} |`,
+            `| Timed out | ${totals.timedOut} |`,
+            `| Interrupted | ${totals.interrupted} |`,
+            `| Total test runtime (s) | ${toSeconds(totalDurationMs)} |`,
+            `| Average test runtime (ms) | ${avgDurationMs} |`,
+          ]);
+          '
+
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report
           path: e2e/playwright-report/
