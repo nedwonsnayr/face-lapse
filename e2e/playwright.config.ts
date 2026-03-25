@@ -4,10 +4,12 @@ import path from "path";
 const PROJECT_ROOT = path.resolve(__dirname, "..");
 
 export default defineConfig({
-  testDir: ".",
+  testDir: "tests",
   testMatch: "*.spec.ts",
   timeout: 120_000, // 2 minutes for video generation in CI
   retries: 0,
+  // Tests share backend state and API cleanup, so keep one worker to avoid cross-file interference.
+  workers: 1,
   reporter: [["list"],["html", { outputFolder: "playwright-report" }]],
   use: {
     baseURL: "http://localhost:5111",
