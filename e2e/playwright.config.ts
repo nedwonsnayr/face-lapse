@@ -10,7 +10,11 @@ export default defineConfig({
   retries: 0,
   // Tests share backend state and API cleanup, so keep one worker to avoid cross-file interference.
   workers: 1,
-  reporter: [["list"],["html", { outputFolder: "playwright-report" }]],
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report" }],
+    ["json", { outputFile: "test-results.json" }],
+  ],
   use: {
     baseURL: "http://localhost:5111",
     headless: true,
