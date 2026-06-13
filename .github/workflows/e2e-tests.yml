@@ -132,17 +132,12 @@ jobs:
             interrupted: 0,
           };
 
-          const durationsMs = [];
-
           const visitSuite = (suite) => {
             for (const spec of suite.specs || []) {
               for (const test of spec.tests || []) {
                 const outcomes = new Set();
                 for (const result of test.results || []) {
                   outcomes.add(result.status);
-                  if (typeof result.duration === "number") {
-                    durationsMs.push(result.duration);
-                  }
                 }
 
                 if (outcomes.has("failed")) totals.failed += 1;
@@ -168,10 +163,10 @@ jobs:
             totals.timedOut +
             totals.interrupted;
 
-          const totalDurationMs = durationsMs.reduce((sum, ms) => sum + ms, 0);
-          const avgDurationMs = durationsMs.length
-            ? Math.round(totalDurationMs / durationsMs.length)
-            : 0;
+          const suiteDurationMs =
+            typeof report.stats?.duration === "number" ? report.stats.duration : 0;
+          const avgPerTestMs =
+            totalTests > 0 ? Math.round(suiteDurationMs / totalTests) : 0;
 
           const toSeconds = (ms) => (ms / 1000).toFixed(2);
 
@@ -187,8 +182,8 @@ jobs:
             `| Skipped | ${totals.skipped} |`,
             `| Timed out | ${totals.timedOut} |`,
             `| Interrupted | ${totals.interrupted} |`,
-            `| Total test runtime (s) | ${toSeconds(totalDurationMs)} |`,
-            `| Average test runtime (ms) | ${avgDurationMs} |`,
+            `| Suite runtime (s) | ${toSeconds(suiteDurationMs)} |`,
+            `| Average per test (ms) | ${avgPerTestMs} |`,
           ]);
           '
 
