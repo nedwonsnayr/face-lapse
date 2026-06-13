@@ -68,6 +68,27 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     flexShrink: 0,
   },
+  stepBtn: {
+    padding: "6px 10px",
+    fontSize: 14,
+    lineHeight: 1,
+    borderRadius: "var(--radius-sm)",
+    background: "transparent",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  stepBtnDisabled: {
+    opacity: 0.4,
+    cursor: "not-allowed",
+  },
+  stepBtnGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    flexShrink: 0,
+  },
   scrubber: {
     flex: 1,
     accentColor: "var(--primary)",
