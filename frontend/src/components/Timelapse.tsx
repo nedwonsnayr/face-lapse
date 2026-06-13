@@ -62,6 +62,44 @@ export default function Timelapse({ images }: TimelapseProps) {
     setCurrentIndex((prev) => Math.min(images.length - 1, prev + 1));
   }, [images.length]);
 
+  useEffect(() => {
+    if (images.length === 0) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isPlaying) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+      const target = event.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const index = Math.min(currentIndex, Math.max(0, images.length - 1));
+
+      if (event.key === "ArrowLeft" && index > 0) {
+        event.preventDefault();
+        stepBackward();
+      } else if (event.key === "ArrowRight" && index < images.length - 1) {
+        event.preventDefault();
+        stepForward();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isPlaying,
+    currentIndex,
+    images.length,
+    stepBackward,
+    stepForward,
+  ]);
+
   const handleDownload = useCallback(async () => {
     setIsGenerating(true);
     setError(null);

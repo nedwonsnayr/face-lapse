@@ -67,4 +67,27 @@ test.describe("Timelapse playback controls", () => {
     await expect(page.getByTestId("step-forward-button")).toBeDisabled();
     await expect(page.getByTestId("step-backward-button")).toBeEnabled();
   });
+
+  test("arrow keys step one frame when paused", async ({ page }) => {
+    await page.getByTestId("play-pause-button").click();
+    await page.getByTestId("timelapse-scrubber").fill("1");
+    await expect(page.getByTestId("frame-counter")).toHaveText("2 / 3");
+
+    await page.getByRole("heading", { name: "Timelapse" }).click();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("frame-counter")).toHaveText("3 / 3");
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByTestId("frame-counter")).toHaveText("2 / 3");
+  });
+
+  test("arrow keys do not step when focus is in an input", async ({ page }) => {
+    await page.getByTestId("play-pause-button").click();
+    await page.getByTestId("timelapse-scrubber").fill("1");
+    await expect(page.getByTestId("frame-counter")).toHaveText("2 / 3");
+
+    await page.getByTestId("birthday-input").focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("frame-counter")).toHaveText("2 / 3");
+  });
 });

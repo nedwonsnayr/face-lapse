@@ -106,7 +106,7 @@ jobs:
           const path = require("path");
 
           const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-          const resultsPath = path.join(process.cwd(), "e2e", "test-results.json");
+          const resultsPath = path.join(process.cwd(), "e2e", "test-results", "report.json");
 
           const writeLines = (lines) => {
             fs.appendFileSync(summaryPath, lines.join("\n") + "\n");
@@ -116,7 +116,7 @@ jobs:
             writeLines([
               "## Playwright E2E Results",
               "",
-              "No `test-results.json` file was produced. Tests may have failed before the reporter could write output.",
+              "No `test-results/report.json` file was produced. Tests may have failed before the reporter could write output.",
             ]);
             process.exit(0);
           }

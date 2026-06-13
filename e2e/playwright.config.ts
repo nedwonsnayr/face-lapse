@@ -13,7 +13,7 @@ export default defineConfig({
   reporter: [
     ["list"],
     ["html", { outputFolder: "playwright-report" }],
-    ["json", { outputFile: "test-results.json" }],
+    ["json", { outputFile: "test-results/report.json" }],
   ],
   use: {
     baseURL: "http://localhost:5111",
