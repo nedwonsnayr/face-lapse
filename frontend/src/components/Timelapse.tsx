@@ -54,6 +54,14 @@ export default function Timelapse({ images }: TimelapseProps) {
     setIsPlaying((p) => !p);
   }, []);
 
+  const stepBackward = useCallback(() => {
+    setCurrentIndex((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  const stepForward = useCallback(() => {
+    setCurrentIndex((prev) => Math.min(images.length - 1, prev + 1));
+  }, [images.length]);
+
   const handleDownload = useCallback(async () => {
     setIsGenerating(true);
     setError(null);
@@ -125,6 +133,8 @@ export default function Timelapse({ images }: TimelapseProps) {
       })
     : null;
   const currentAge = showAge ? calculateAge(currentImage?.photo_taken_at || null) : null;
+  const canStepBackward = !isPlaying && safeIndex > 0;
+  const canStepForward = !isPlaying && safeIndex < images.length - 1;
 
   return (
     <div style={styles.section}>
@@ -172,6 +182,34 @@ export default function Timelapse({ images }: TimelapseProps) {
           <span data-testid="frame-counter" style={styles.scrubLabel}>
             {safeIndex + 1} / {images.length}
           </span>
+          <div style={styles.stepBtnGroup}>
+            <button
+              data-testid="step-backward-button"
+              type="button"
+              style={{
+                ...styles.stepBtn,
+                ...(!canStepBackward ? styles.stepBtnDisabled : {}),
+              }}
+              onClick={stepBackward}
+              disabled={!canStepBackward}
+              aria-label="Previous frame"
+            >
+              ◀
+            </button>
+            <button
+              data-testid="step-forward-button"
+              type="button"
+              style={{
+                ...styles.stepBtn,
+                ...(!canStepForward ? styles.stepBtnDisabled : {}),
+              }}
+              onClick={stepForward}
+              disabled={!canStepForward}
+              aria-label="Next frame"
+            >
+              ▶
+            </button>
+          </div>
         </div>
 
         <SpeedSlider value={frameDuration} onChange={setFrameDuration} />
