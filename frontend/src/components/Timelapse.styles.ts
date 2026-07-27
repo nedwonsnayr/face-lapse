@@ -34,7 +34,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     width: "100%",
     maxWidth: 600,
-    aspectRatio: "3 / 4", // Match video dimensions (600x800)
+    aspectRatio: "3 / 4", // Match the video's portrait aspect ratio.
     margin: "0 auto",
   },
   frame: {

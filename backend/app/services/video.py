@@ -9,7 +9,7 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
+from ..config import DEFAULT_FRAME_DURATION, OUTPUT_HEIGHT, OUTPUT_WIDTH, VIDEOS_DIR
 
 log = logging.getLogger("face-lapse.video")
 
@@ -20,38 +20,33 @@ def _overlay_date_on_image(image_path: str, date_str: str, output_path: str, age
     Returns True on success, False on failure.
     """
     try:
-        # Open the image
-        img = Image.open(image_path)
-        # Convert to RGB if needed (handles RGBA, etc.)
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        
-        # Create a drawing context
+        with Image.open(image_path) as source:
+            img = source.convert("RGB")
+
+        target_size = (OUTPUT_WIDTH, OUTPUT_HEIGHT)
+        if img.size != target_size:
+            img = img.resize(target_size, Image.Resampling.LANCZOS)
+
         draw = ImageDraw.Draw(img)
-        
-        # Try to use a nice font, fall back to default if not available
+
+        font_size = max(12, round(img.height * 0.015))
+        box_padding = max(5, round(img.height * 0.00625))
+        margin = max(10, round(img.height * 0.0125))
+        spacing = max(4, round(img.height * 0.005))
+
         try:
-            # Try system fonts (macOS)
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 24)
+            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
         except (OSError, IOError):
             try:
-                # Try alternative macOS font
-                font = ImageFont.truetype("/Library/Fonts/Arial.ttf", 24)
+                font = ImageFont.truetype("/Library/Fonts/Arial.ttf", font_size)
             except (OSError, IOError):
-                # Fall back to default font
                 font = ImageFont.load_default()
-        
-        # Calculate text size and position (bottom right with padding)
+
         img_width, img_height = img.size
-        box_padding = 10
-        margin = 20  # Margin from edges
-        
-        # Calculate date text size
         bbox = draw.textbbox((0, 0), date_str, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
-        
-        # Calculate age text size if provided
+
         age_str = None
         age_text_width = 0
         age_text_height = 0
@@ -60,49 +55,38 @@ def _overlay_date_on_image(image_path: str, date_str: str, output_path: str, age
             age_bbox = draw.textbbox((0, 0), age_str, font=font)
             age_text_width = age_bbox[2] - age_bbox[0]
             age_text_height = age_bbox[3] - age_bbox[1]
-        
-        # Calculate total height needed (date + spacing + age if present)
-        spacing = 8 if age is not None else 0
+
+        spacing = spacing if age is not None else 0
         total_text_height = text_height + spacing + age_text_height
-        
-        # Calculate box width (max of date and age width)
+
         box_width = max(text_width, age_text_width) + (box_padding * 2)
         box_height = total_text_height + (box_padding * 2)
-        
-        # Position: bottom right with margin
+
         box_x = img_width - box_width - margin
         box_y = img_height - box_height - margin
-        
-        # Text positions within the box
+
         date_x = box_x + box_padding
         date_y = box_y + box_padding
-        
-        # Draw semi-transparent background box
-        # PIL doesn't support RGBA in RGB mode, so we create an overlay
+
         box_coords = [
             box_x,
             box_y,
             box_x + box_width,
             box_y + box_height,
         ]
-        # Create a semi-transparent overlay by blending
         overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
         overlay_draw = ImageDraw.Draw(overlay)
-        overlay_draw.rectangle(box_coords, fill=(0, 0, 0, 153))  # Black with ~60% opacity
+        overlay_draw.rectangle(box_coords, fill=(0, 0, 0, 153))
         img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
         draw = ImageDraw.Draw(img)
-        
-        # Draw the date text
+
         draw.text((date_x, date_y), date_str, fill=(255, 255, 255), font=font)
-        
-        # Draw age text below date if provided, right-aligned
+
         if age_str:
             age_y = date_y + text_height + spacing
-            # Right-align the age text within the box
             age_x = box_x + box_width - age_text_width - box_padding
             draw.text((age_x, age_y), age_str, fill=(255, 255, 255), font=font)
-        
-        # Save the image
+
         img.save(output_path, "JPEG", quality=95)
         return True
     except Exception as e:
@@ -119,7 +103,7 @@ def generate_video(
     Generate an MP4 video from a list of image metadata.
 
     Uses FFmpeg concat demuxer for reliable frame timing.
-    If show_dates is True, overlays dates on each frame using drawtext filter.
+    If show_dates is True, overlays dates on normalized frames using PIL.
     Returns the path to the generated video, or None on failure.
     """
     if not image_metadata:
@@ -183,8 +167,7 @@ def generate_video(
             f.write(f"file '{image_metadata[-1]['path']}'\n")
 
     try:
-        # Build video filter (no special filter needed since dates are pre-rendered)
-        vf = "format=yuv420p"
+        vf = f"scale={OUTPUT_WIDTH}:{OUTPUT_HEIGHT}:flags=lanczos,format=yuv420p"
 
         cmd = [
             "ffmpeg",
