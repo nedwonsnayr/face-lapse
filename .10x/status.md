@@ -1,17 +1,18 @@
 # Status
-**Phase:** Delivery Complete (ui-revamp), awaiting user review
-**Branch:** ui-revamp (not pushed)
+**Feature:** cloud-hosting (branch `cloud-hosting`, cut from `ui-revamp`)
+**Phase:** Planning complete → Implementation
 
 | # | Task | State |
 |---|---|---|
-| 1 | State, spec, ADRs | done |
-| 2 | Tokens, fonts, global CSS | done |
-| 3 | UI primitives + icons | done |
-| 4 | App shell + two-pane | done |
-| 5 | Upload restyle | done |
-| 6 | Library restyle | done |
-| 7 | Player/export restyle | done |
-| 8 | DatePicker cleanup | done |
-| 9 | Verification (21/21 e2e, visual QA) | done |
+| 1 | State, spec, ADR-003 | done |
+| 2 | Migration 004: portable image paths | todo |
+| 3 | Serve SPA, CORS, Linux fonts | todo |
+| 4 | Cloudflare Access JWT middleware | todo |
+| 5 | Byte-capped uploads (video job only if needed) | todo |
+| 6 | Dockerfile + compose | todo |
+| 7 | Server/backup/deploy scripts + runbook | todo |
+| 8 | Account setup (user) | todo |
+| 9 | Provision VM, migrate data, go live | todo |
+| 10 | Verification + QA/security reviews | todo |
 
-Follow-ups: backend black fill around frames; library virtualization; IPv6 readiness probe in `e2e/start-test-server.sh`.
+Previous feature ui-revamp: delivered, awaiting PR to main.

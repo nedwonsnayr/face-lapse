@@ -1,2 +1,2 @@
-# Handoff → user review
-ui-revamp is implemented on branch `ui-revamp` (commits ce652ef state, 25c6d10 code). QA and security notes are in `reviews/`. Next: user review, then a PR to main. See the follow-ups in `status.md`.
+# Handoff → SDE (cloud-hosting)
+Implement tasks 2–7 from `status.md` per spec `specs/2026-11-05-cloud-hosting-design.md` and ADR-003. Every production behaviour must be gated on env vars, so e2e tests keep passing unchanged. Tasks 8–9 need the user to create the Oracle, Cloudflare and B2 accounts.
