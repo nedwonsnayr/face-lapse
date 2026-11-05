@@ -375,3 +375,123 @@
     gap: var(--space-4) var(--space-3);
   }
 }
+
+/* ── View toggle (grid / list) ─────────────────────────── */
+
+.viewToggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.viewToggleBtn {
+  color: var(--muted);
+}
+
+.viewToggleActive,
+.viewToggleActive:hover {
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+/* ── List view ──────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--hairline);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--hairline);
+  background: var(--bg);
+  touch-action: manipulation;
+}
+
+.row:hover {
+  background: var(--surface);
+}
+
+.rowDragHandle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 36px;
+  color: var(--muted);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.rowDragHandle:active {
+  cursor: grabbing;
+}
+
+.rowThumb {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 42px;
+  height: 56px; /* 3:4, like the aligned photos */
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--mat);
+  color: var(--muted);
+}
+
+.rowThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 2px;
+}
+
+.rowDate {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowFile {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.rowExcluded .rowThumb img {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.rowExcluded .rowDate {
+  color: var(--faint);
+}
