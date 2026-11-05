@@ -98,12 +98,10 @@ test.describe("Face Lapse – library view switching at scale", () => {
     await page.getByTestId("library-view-grid").click();
     await expect(cards).toHaveCount(COUNT);
 
-    // "All photos" is displayed by filename number, so a drag shows up in the
-    // saved order (which the timelapse plays in), not in the on-screen order.
     const idAt = async (i: number) => Number((await cards.nth(i).getAttribute("data-testid"))!.split("-").pop());
     const savedOrder = async (): Promise<number[]> =>
       (await (await page.request.get("/api/images")).json()).map((i: { id: number }) => i.id);
-    const dragFirstOnto = async (target: number) => {
+    const dragFirstOnto = async (target: number, newestFirst = false) => {
       const [first, onto] = [await idAt(0), await idAt(target)];
       const handle = cards.first().locator('[title="Drag to reorder"]');
       await handle.scrollIntoViewIfNeeded();
@@ -113,15 +111,27 @@ test.describe("Face Lapse – library view switching at scale", () => {
       await page.mouse.down();
       await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
       await page.mouse.up();
+      // The card moves on screen and the saved (video) order matches.
+      await expect.poll(() => idAt(target)).toBe(first);
       await expect.poll(async () => {
         const order = await savedOrder();
         return order.indexOf(first) - order.indexOf(onto);
-      }).toBe(1); // dropped just after the target
+      }).toBe(newestFirst ? -1 : 1); // just after the target on screen
     };
 
     await dragFirstOnto(2); // grid
+    await page.reload(); // order survives a reload
+    expect(await idAt(2)).toBe((await savedOrder())[2]);
+
     await page.getByTestId("library-view-list").click();
     await expect(cards).toHaveCount(COUNT);
     await dragFirstOnto(3); // list
+
+    // Newest first: dragging still moves just that photo, in the direction shown.
+    await page.waitForTimeout(100); // dnd-kit swallows clicks for 50 ms after a drop
+    await page.getByRole("button", { name: /oldest first/i }).click();
+    await expect(page.getByRole("button", { name: /newest first/i })).toBeVisible();
+    expect(await idAt(0)).toBe((await savedOrder()).at(-1));
+    await dragFirstOnto(2, true);
   });
 });

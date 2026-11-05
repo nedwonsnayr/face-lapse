@@ -18,3 +18,15 @@
   - 2×-throttled phone: 560 → ~150–190 ms.
   - 4×-throttled phone: 950 → ~350 ms.
 - Known quirk (pre-existing): "All photos" is displayed by filename number, so a drag changes the saved/video order but the card doesn't move on screen.
+
+## Follow-up: grid scrolling slowed the timelapse; reorder didn't move cards (2026-11-05)
+- **Scroll stall:**
+  - `.icon_overlay` buttons had `backdrop-filter: blur(6px)`. That's two per grid card, each its own compositing layer, so 2,000+ layers with a full library.
+  - Chrome spent ~4.9 s of a 6 s scroll in Layerize, and the player dropped to ~14 fps (4× throttle).
+  - Removed the blur; the buttons are 92% opaque, so nothing visible changes. Layerize is now 0.26 s and the player holds ~20 fps.
+- **Reorder:**
+  - "All photos" was re-sorted by filename number, so drags saved but the cards never moved.
+  - Drags in "Just uploaded" wrote sort_order 0..k for those few photos only, jumping them to the front of the video.
+  - Now the library shows the server order (sort_order, then photo number); newest-first reverses it.
+  - A drop moves the photo within the whole library order and saves every position.
+  - The new order shows optimistically until the refresh lands.
