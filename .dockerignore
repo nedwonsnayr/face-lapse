@@ -1,0 +1,11 @@
+.git
+.10x
+.venv
+.env
+data
+e2e
+demo.gif
+**/node_modules
+frontend/dist
+**/__pycache__
+*.command

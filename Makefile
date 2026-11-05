@@ -1,4 +1,4 @@
-.PHONY: start backend frontend reset-db install test-e2e test-e2e-headed
+.PHONY: start backend frontend reset-db install test-e2e test-e2e-headed test-e2e-docker
 
 # Start both backend and frontend
 start:
@@ -19,6 +19,11 @@ reset-db:
 # Run Playwright end-to-end tests (auto-starts isolated test server)
 test-e2e:
 	cd e2e && npx playwright test --config playwright.config.ts
+
+# Run Playwright tests against the production Docker image
+test-e2e-docker:
+	docker build -t face-lapse:test .
+	cd e2e && npx playwright test --config playwright.docker.config.ts
 
 # Run Playwright tests with a visible browser window
 test-e2e-headed:

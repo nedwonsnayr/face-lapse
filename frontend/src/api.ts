@@ -50,6 +50,8 @@ export interface AlignProgress {
 }
 
 const UPLOAD_BATCH_SIZE = 20;
+// Cloudflare rejects request bodies over 100 MB; stay well under it.
+const UPLOAD_BATCH_MAX_BYTES = 80 * 1024 * 1024;
 
 export interface UploadProgress {
   uploaded: number;
@@ -57,8 +59,36 @@ export interface UploadProgress {
 }
 
 /**
+ * Split files into batches of at most UPLOAD_BATCH_SIZE files and
+ * UPLOAD_BATCH_MAX_BYTES bytes. A single file larger than the byte cap
+ * goes in a batch on its own.
+ */
+export function batchFiles(
+  files: File[],
+  maxCount = UPLOAD_BATCH_SIZE,
+  maxBytes = UPLOAD_BATCH_MAX_BYTES
+): File[][] {
+  const batches: File[][] = [];
+  let current: File[] = [];
+  let currentBytes = 0;
+  for (const file of files) {
+    const full = current.length >= maxCount;
+    const tooBig = current.length > 0 && currentBytes + file.size > maxBytes;
+    if (full || tooBig) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(file);
+    currentBytes += file.size;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+/**
  * Upload images in batches (save originals only, no alignment).
- * Files are sent in chunks of UPLOAD_BATCH_SIZE to avoid request-size limits.
+ * Files are sent in chunks (see batchFiles) to stay under request-size limits.
  * `onProgress` fires after each batch completes.
  */
 export async function uploadImages(
@@ -66,9 +96,9 @@ export async function uploadImages(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadedImage[]> {
   const allResults: UploadedImage[] = [];
+  let uploaded = 0;
 
-  for (let i = 0; i < files.length; i += UPLOAD_BATCH_SIZE) {
-    const batch = files.slice(i, i + UPLOAD_BATCH_SIZE);
+  for (const batch of batchFiles(files)) {
     const formData = new FormData();
     batch.forEach((file) => formData.append("files", file));
 
@@ -85,7 +115,8 @@ export async function uploadImages(
     const results: UploadedImage[] = await res.json();
     allResults.push(...results);
 
-    onProgress?.({ uploaded: Math.min(i + batch.length, files.length), total: files.length });
+    uploaded += batch.length;
+    onProgress?.({ uploaded, total: files.length });
   }
 
   return allResults;

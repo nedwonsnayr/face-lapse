@@ -2,8 +2,9 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlalchemy==2.0.36
 python-multipart==0.0.20
-mediapipe==0.10.21
+mediapipe==0.10.18  # last release with a linux aarch64 wheel (Oracle A1 VM)
 opencv-python-headless==4.10.0.84
 numpy<2
 pillow==11.1.0
 pillow-heif==1.2.0
+PyJWT[crypto]==2.10.1

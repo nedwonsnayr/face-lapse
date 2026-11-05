@@ -32,3 +32,4 @@ e2e/.e2e-server-logs/
 # Environment
 .env
 .env.local
+*.tsbuildinfo
