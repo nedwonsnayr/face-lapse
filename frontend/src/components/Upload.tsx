@@ -475,7 +475,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
                   <img
                     src={
                       img.id > 0
-                        ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.source_filename || img.original_filename}`
+                        ? getOriginalImageUrl(img.id, img.content_hash)
                         : DUPLICATE_PLACEHOLDER
                     }
                     alt={img.source_filename || img.original_filename}

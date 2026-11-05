@@ -24,6 +24,9 @@ class Image(Base):
     right_eye_x = Column(Float, nullable=True)
     right_eye_y = Column(Float, nullable=True)
     face_detected = Column(Boolean, default=False)
+    # False while an upload is staged and alignment hasn't run yet. Lets the UI
+    # tell "waiting to be aligned" apart from "aligned, no face found".
+    align_attempted = Column(Boolean, nullable=False, default=False, server_default="0")
 
     # Timestamps
     created_at = Column(DateTime, default=_utcnow)

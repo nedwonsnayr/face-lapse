@@ -25,11 +25,9 @@ test.describe("Face Lapse – face detected (real images)", () => {
 
     await expect(page.getByTestId("alignment-result-success")).toBeVisible();
 
-    await expect(
-      page
-        .getByTestId("just-uploaded-group")
-        .or(page.getByTestId("previously-processed-group"))
-    ).toBeVisible({ timeout: 10_000 });
+    // New photos appear in both "Just uploaded" and the main list.
+    await expect(page.getByTestId("just-uploaded-group")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("previously-processed-group")).toBeVisible();
 
     await expect(page.getByTestId("play-pause-button")).toBeVisible();
     await expect(page.getByTestId("frame-counter")).toBeVisible();
@@ -52,7 +50,10 @@ test.describe("Face Lapse – face detected (real images)", () => {
     const firstImageId = images.find((img: any) => img.has_aligned)?.id;
     expect(firstImageId).toBeDefined();
 
-    const toggleButton = page.getByTestId(`toggle-include-button-${firstImageId}`);
+    // The card is in both "Just uploaded" and the main list; use the main list.
+    const toggleButton = page
+      .getByTestId("previously-processed-group")
+      .getByTestId(`toggle-include-button-${firstImageId}`);
     await toggleButton.click();
 
     await expect(toggleButton).toHaveText("Out", { timeout: 10_000 });

@@ -197,7 +197,7 @@ export default function Timelapse({ images }: TimelapseProps) {
           {currentImage && (
             <img
               data-testid="timelapse-frame"
-              src={getAlignedImageUrl(currentImage.id)}
+              src={getAlignedImageUrl(currentImage.id, currentImage.content_hash)}
               alt={`Frame ${safeIndex + 1}`}
               className={s.frame}
             />

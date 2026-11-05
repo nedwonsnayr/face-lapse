@@ -10,6 +10,10 @@ export interface ImageRecord {
   created_at: string | null;
   has_aligned: boolean;
   sort_order: number | null;
+  /** Uploaded but not aligned yet (staged on some device). */
+  pending: boolean;
+  /** Changes whenever the photo's content changes; used as the image URL cache key. */
+  content_hash: string;
 }
 
 /** Record returned by the upload endpoint (before alignment). */
@@ -18,6 +22,7 @@ export interface UploadedImage {
   original_filename: string;
   source_filename: string | null;
   photo_taken_at: string | null;
+  content_hash?: string;
   skipped?: boolean; // true if this is a duplicate
   existing_id?: number; // ID of the existing duplicate image
 }
@@ -310,11 +315,13 @@ export async function generateVideo(
   };
 }
 
-export function getAlignedImageUrl(id: number): string {
-  return `${API_BASE}/images/${id}/aligned`;
+// Image responses are cached for a year, so the URL must change with the
+// content: IDs can be reused after a delete. `version` is the content hash.
+export function getAlignedImageUrl(id: number, version?: string): string {
+  return `${API_BASE}/images/${id}/aligned${version ? `?v=${version}` : ""}`;
 }
 
-export function getOriginalImageUrl(id: number): string {
-  return `${API_BASE}/images/${id}/original`;
+export function getOriginalImageUrl(id: number, version?: string): string {
+  return `${API_BASE}/images/${id}/original${version ? `?v=${version}` : ""}`;
 }
 
