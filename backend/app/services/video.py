@@ -13,6 +13,22 @@ from ..config import DEFAULT_FRAME_DURATION, OUTPUT_HEIGHT, OUTPUT_WIDTH, VIDEOS
 
 log = logging.getLogger("face-lapse.video")
 
+# macOS first, then Linux (Docker image installs fonts-dejavu-core).
+_FONT_CANDIDATES = (
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/Library/Fonts/Arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
+
+
+def _load_font(size: int):
+    for path in _FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except (OSError, IOError):
+            continue
+    return ImageFont.load_default(size)
+
 
 def _overlay_date_on_image(image_path: str, date_str: str, output_path: str, age: int | None = None) -> bool:
     """
@@ -34,13 +50,7 @@ def _overlay_date_on_image(image_path: str, date_str: str, output_path: str, age
         margin = max(10, round(img.height * 0.0125))
         spacing = max(4, round(img.height * 0.005))
 
-        try:
-            font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
-        except (OSError, IOError):
-            try:
-                font = ImageFont.truetype("/Library/Fonts/Arial.ttf", font_size)
-            except (OSError, IOError):
-                font = ImageFont.load_default()
+        font = _load_font(font_size)
 
         img_width, img_height = img.size
         bbox = draw.textbbox((0, 0), date_str, font=font)

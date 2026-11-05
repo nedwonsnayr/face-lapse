@@ -3,3 +3,4 @@
 - [DISCOVERED] Backend: FastAPI routers under `backend/app/routers`; data in `data/` (originals, aligned, videos) plus SQLite.
 
 Active features: [ui-revamp](ui-revamp.md) — ADR-001, ADR-002
+- cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)

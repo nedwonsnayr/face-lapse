@@ -38,6 +38,10 @@ Then open http://localhost:5173
 
 > **Note:** The `Face Lapse.command` file and `open` command used in startup scripts are macOS-specific. On Linux, use the `make` commands above.
 
+## Hosting
+
+To run it in the cloud and reach it from anywhere (Oracle Cloud free VM + Cloudflare login + nightly B2 backups, about $11/yr), see [docs/hosting.md](docs/hosting.md).
+
 ## Usage
 
 1. **Upload** — Drag and drop selfies (or click to browse). Files are uploaded in batches and sorted by photo date (from EXIF or filename). Each image is auto-numbered sequentially. Supports JPG, PNG, WebP, and HEIC.

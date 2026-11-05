@@ -1,12 +1,14 @@
 """Video generation and download endpoints."""
 
 import logging
+import threading
 import time
+import uuid
 from datetime import date, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
 log = logging.getLogger("face-lapse.video")
@@ -17,6 +19,55 @@ from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION, numeric_filename_key
 from ..services.video import generate_video
 
 router = APIRouter()
+
+# ── Background jobs ──────────────────────────────────────────────
+# Generating a 1,000+ frame video takes ~1.5–2.5 min on the server, longer than
+# Cloudflare's ~100 s proxy timeout. So /generate starts a job and returns at
+# once; the client polls /jobs/{id}. Jobs live in memory (single process, single
+# user); a restart just loses in-flight jobs, which the client reports as an error.
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+_MAX_JOBS = 20
+
+
+def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool) -> None:
+    t0 = time.time()
+    try:
+        video_path = generate_video(image_metadata, frame_duration=frame_duration, show_dates=show_dates)
+    except Exception:  # noqa: BLE001 — surface any failure to the poller
+        log.exception("Video job %s crashed", job_id)
+        video_path = None
+    with _jobs_lock:
+        job = _jobs[job_id]
+        if video_path:
+            job.update(status="done", video_filename=Path(video_path).name)
+            log.info("Video ready: %s (%.1fs)", job["video_filename"], time.time() - t0)
+        else:
+            job.update(status="error", error="Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).")
+            log.error("Video generation failed (ffmpeg error)")
+
+
+def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool) -> dict:
+    job_id = uuid.uuid4().hex
+    job = {
+        "job_id": job_id,
+        "status": "running",
+        "frame_count": len(image_metadata),
+        "frame_duration": frame_duration,
+        "total_duration": len(image_metadata) * frame_duration,
+        "video_filename": None,
+        "error": None,
+    }
+    with _jobs_lock:
+        # Drop the oldest finished jobs so the dict can't grow without bound.
+        finished = [k for k, v in _jobs.items() if v["status"] != "running"]
+        for k in finished[: max(0, len(_jobs) - _MAX_JOBS + 1)]:
+            del _jobs[k]
+        _jobs[job_id] = job
+    threading.Thread(
+        target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates), daemon=True
+    ).start()
+    return dict(job)
 
 
 @router.post("/generate")
@@ -100,43 +151,30 @@ def generate_timelapse(
         for img in valid_images
     ]
 
-    # Generate video
+    # Generate video in the background (see _start_job)
     show_age = birthday is not None and show_dates
     log.info(
         "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s",
         len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates, show_age,
     )
-    t0 = time.time()
-    video_path = generate_video(
-        image_metadata,
-        frame_duration=frame_duration,
-        show_dates=show_dates,
-    )
+    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates))
 
-    if not video_path:
-        log.error("Video generation failed (ffmpeg error)")
-        raise HTTPException(
-            status_code=500,
-            detail="Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).",
-        )
 
-    elapsed = time.time() - t0
-    log.info("Video ready: %s (%.1fs)", Path(video_path).name, elapsed)
-
-    return {
-        "success": True,
-        "frame_count": len(valid_images),
-        "frame_duration": frame_duration,
-        "total_duration": len(valid_images) * frame_duration,
-        "video_filename": Path(video_path).name,
-    }
+@router.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    """Poll a video generation job started by POST /generate."""
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Video job not found (the server may have restarted)")
+        return dict(job)
 
 
 @router.get("/{filename}")
 def get_video_by_name(filename: str):
     """Download a specific generated video by filename."""
-    video_path = VIDEOS_DIR / filename
-    if not video_path.exists():
+    video_path = (VIDEOS_DIR / filename).resolve()
+    if video_path.parent != VIDEOS_DIR.resolve() or not video_path.is_file():
         raise HTTPException(status_code=404, detail="Video not found")
 
     download_name = f"face-lapse-{date.today().strftime('%m-%d-%Y')}.mp4"

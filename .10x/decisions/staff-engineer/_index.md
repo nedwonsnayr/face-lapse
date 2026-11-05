@@ -3,3 +3,4 @@
 - [DISCOVERED] Tests select almost exclusively by `data-testid`; these attributes are the public contract of the UI.
 
 Active features: [ui-revamp](ui-revamp.md)
+- cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)

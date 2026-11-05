@@ -11,6 +11,13 @@ ORIGINALS_DIR = DATA_DIR / "originals"
 ALIGNED_DIR = DATA_DIR / "aligned"
 VIDEOS_DIR = DATA_DIR / "videos"
 
+# Production: built SPA served by FastAPI when set (e.g. /app/frontend/dist)
+STATIC_DIR = Path(os.environ["FACE_LAPSE_STATIC_DIR"]) if os.environ.get("FACE_LAPSE_STATIC_DIR") else None
+
+# Cloudflare Access JWT verification — enabled only when both are set
+CF_ACCESS_TEAM_DOMAIN = os.environ.get("CF_ACCESS_TEAM_DOMAIN", "").strip()  # e.g. "myteam.cloudflareaccess.com"
+CF_ACCESS_AUD = os.environ.get("CF_ACCESS_AUD", "").strip()
+
 # Database
 DATABASE_URL = f"sqlite:///{DATA_DIR / 'face_lapse.db'}"
 

@@ -50,6 +50,8 @@ export interface AlignProgress {
 }
 
 const UPLOAD_BATCH_SIZE = 20;
+// Cloudflare rejects request bodies over 100 MB; stay well under it.
+const UPLOAD_BATCH_MAX_BYTES = 80 * 1024 * 1024;
 
 export interface UploadProgress {
   uploaded: number;
@@ -57,8 +59,36 @@ export interface UploadProgress {
 }
 
 /**
+ * Split files into batches of at most UPLOAD_BATCH_SIZE files and
+ * UPLOAD_BATCH_MAX_BYTES bytes. A single file larger than the byte cap
+ * goes in a batch on its own.
+ */
+export function batchFiles(
+  files: File[],
+  maxCount = UPLOAD_BATCH_SIZE,
+  maxBytes = UPLOAD_BATCH_MAX_BYTES
+): File[][] {
+  const batches: File[][] = [];
+  let current: File[] = [];
+  let currentBytes = 0;
+  for (const file of files) {
+    const full = current.length >= maxCount;
+    const tooBig = current.length > 0 && currentBytes + file.size > maxBytes;
+    if (full || tooBig) {
+      batches.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(file);
+    currentBytes += file.size;
+  }
+  if (current.length) batches.push(current);
+  return batches;
+}
+
+/**
  * Upload images in batches (save originals only, no alignment).
- * Files are sent in chunks of UPLOAD_BATCH_SIZE to avoid request-size limits.
+ * Files are sent in chunks (see batchFiles) to stay under request-size limits.
  * `onProgress` fires after each batch completes.
  */
 export async function uploadImages(
@@ -66,9 +96,9 @@ export async function uploadImages(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadedImage[]> {
   const allResults: UploadedImage[] = [];
+  let uploaded = 0;
 
-  for (let i = 0; i < files.length; i += UPLOAD_BATCH_SIZE) {
-    const batch = files.slice(i, i + UPLOAD_BATCH_SIZE);
+  for (const batch of batchFiles(files)) {
     const formData = new FormData();
     batch.forEach((file) => formData.append("files", file));
 
@@ -85,7 +115,8 @@ export async function uploadImages(
     const results: UploadedImage[] = await res.json();
     allResults.push(...results);
 
-    onProgress?.({ uploaded: Math.min(i + batch.length, files.length), total: files.length });
+    uploaded += batch.length;
+    onProgress?.({ uploaded, total: files.length });
   }
 
   return allResults;
@@ -213,6 +244,31 @@ export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
   return res.json();
 }
 
+interface VideoJob extends Omit<GenerateResponse, "success" | "video_filename"> {
+  job_id: string;
+  status: "running" | "done" | "error";
+  video_filename: string | null;
+  error: string | null;
+}
+
+const VIDEO_POLL_MS = 2000;
+const VIDEO_TIMEOUT_MS = 15 * 60 * 1000;
+
+async function readError(res: Response, fallback: string): Promise<Error> {
+  const data = await res.json().catch(() => ({}));
+  const errorMsg: string = data.detail || fallback;
+  // Provide more helpful error message if FFmpeg is not found
+  if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
+    return new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
+  }
+  return new Error(errorMsg);
+}
+
+/**
+ * Start video generation and wait for it to finish.
+ * The server runs it as a background job (it can take minutes, longer than
+ * Cloudflare's proxy timeout), so we poll until it's done.
+ */
 export async function generateVideo(
   frameDuration: number,
   showDates: boolean = false,
@@ -231,16 +287,27 @@ export async function generateVideo(
     `${API_BASE}/video/generate?${params.toString()}`,
     { method: "POST" }
   );
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    const errorMsg = data.detail || "Video generation failed";
-    // Provide more helpful error message if FFmpeg is not found
-    if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
-      throw new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
-    }
-    throw new Error(errorMsg);
+  if (!res.ok) throw await readError(res, "Video generation failed");
+  let job: VideoJob = await res.json();
+
+  const deadline = Date.now() + VIDEO_TIMEOUT_MS;
+  while (job.status === "running") {
+    if (Date.now() > deadline) throw new Error("Video generation timed out");
+    await new Promise((r) => setTimeout(r, VIDEO_POLL_MS));
+    const poll = await fetch(`${API_BASE}/video/jobs/${job.job_id}`);
+    if (!poll.ok) throw await readError(poll, "Lost track of video generation");
+    job = await poll.json();
   }
-  return res.json();
+  if (job.status === "error" || !job.video_filename) {
+    throw new Error(job.error || "Video generation failed");
+  }
+  return {
+    success: true,
+    frame_count: job.frame_count,
+    frame_duration: job.frame_duration,
+    total_duration: job.total_duration,
+    video_filename: job.video_filename,
+  };
 }
 
 export function getAlignedImageUrl(id: number): string {

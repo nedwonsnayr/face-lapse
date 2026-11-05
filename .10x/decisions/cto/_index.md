@@ -3,3 +3,4 @@
 - Local-first, single-user app (launched via `Face Lapse.command` / `make start`).
 
 Active features: [ui-revamp](ui-revamp.md)
+- cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)
