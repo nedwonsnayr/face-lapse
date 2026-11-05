@@ -6,3 +6,4 @@
 - CORS wildcard removed in production (same origin).
 - Backups are encrypted client-side by restic; the B2 key is scoped to one bucket. Losing the restic password means the backups can't be restored, so it goes in a password manager.
 - CI deploy key: pinned with `command=...,restrict` in authorized_keys. A leaked key can only redeploy a commit that already exists on GitHub. Secrets live in the `production` environment; fork PRs never see them; the host key is pinned (`StrictHostKeyChecking=yes`).
+- Review 2026-11-05: see `reviews/2026-11-05-cloud-hosting-security-review.md`. Live exposure checks pass. Fixed a path traversal in the video download route. Secrets shared in chat are an accepted risk by the owner's choice.

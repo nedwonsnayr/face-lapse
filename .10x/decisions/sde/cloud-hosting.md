@@ -17,3 +17,4 @@
 ## Tech debt / open
 - Video generation is still synchronous. It needs timing on the VM (Cloudflare's limit is 100 s) before deciding whether to make it a background job.
 - No Python unit-test harness in the repo; the backend checks above were ad hoc.
+- 2026-11-05 go-live: the video background job was needed, and is built (`routers/video.py` `_start_job`/`get_job`, `api.ts` polling). Fixed a pipefail bug in server-setup's cron line.
