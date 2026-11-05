@@ -34,15 +34,16 @@ phone / laptop ──HTTPS──▶ Cloudflare Access (email code)
 
 ### Cloudflare (domain, tunnel, login)
 1. Sign up at <https://dash.cloudflare.com>. Go to Domain Registration → **Register domain** → pick a `.com` (about $10.44–11.15/yr, sold at cost).
-2. Open **Zero Trust** (left sidebar) and choose the **Free** plan. It asks for a card but doesn't charge it.
-3. Zero Trust → Networks → **Tunnels** → Create a tunnel → *Cloudflared* → name it `face-lapse`.
+2. Main dashboard → **Networking → Tunnels** → **Create Tunnel**. (Tunnels moved here in February 2026; the older Zero Trust → Networks → Connectors path still works.)
+   - Name it `face-lapse`. When asked for the OS, pick **Docker**.
    - Copy the **token**: the long string after `--token` in the install command. → `TUNNEL_TOKEN`
-   - Public hostname:
-     - **Subdomain:** `facelapse`
-     - **Domain:** your domain
-     - **Service:** `HTTP` → `app:8000`
-4. Zero Trust → Access → Applications → **Add an application** → *Self-hosted*:
-   - **Hostname:** `facelapse.<your-domain>.com`.
+   - Add a **published application** route:
+     - **Hostname:** subdomain `facelapse`, domain `ryanmsnowden.com`
+     - **Service URL:** `http://app:8000`
+   - Cloudflare creates the DNS record for you.
+3. Open **Zero Trust** (it may be labelled **Cloudflare One**) and choose the **Free** plan. It asks for a card but doesn't charge it.
+4. Zero Trust → **Access controls → Applications** → **Add an application** → *Self-hosted*:
+   - **Add public hostname:** subdomain `facelapse`, domain `ryanmsnowden.com`.
    - **Policy:** Action *Allow*, Include → *Emails* → your email address.
    - **Login method:** One-time PIN (the default).
    - After saving, open the app and copy the **Application Audience (AUD) tag**. → `CF_ACCESS_AUD`
