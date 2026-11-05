@@ -1,4 +1,4 @@
-import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from "react";
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -367,29 +367,41 @@ export default function ImageLibrary({
     }
   });
 
-  const handleDragEnd = useCallback(
-    async (event: DragEndEvent, list: ImageRecord[]) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
+  /*
+   * Library order is the server's: manual sort_order first, then photo number.
+   * After a drop we show the new order straight away (until the refreshed list
+   * arrives) so the card doesn't snap back first.
+   */
+  const [optimisticOrder, setOptimisticOrder] = useState<number[] | null>(null);
+  useEffect(() => setOptimisticOrder(null), [images]);
+  const orderedImages = useMemo(() => {
+    if (!optimisticOrder) return images;
+    const pos = new Map(optimisticOrder.map((id, i) => [id, i]));
+    const at = (id: number) => pos.get(id) ?? Number.MAX_SAFE_INTEGER;
+    return [...images].sort((a, b) => at(a.id) - at(b.id));
+  }, [images, optimisticOrder]);
 
-      const oldIdx = list.findIndex((img) => img.id === active.id);
-      const newIdx = list.findIndex((img) => img.id === over.id);
-      if (oldIdx === -1 || newIdx === -1) return;
+  // Moves the photo within the whole library, so dragging inside "Just
+  // uploaded" (or with newest-first on) keeps every other photo where it was.
+  const handleDragEnd = useStableCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-      const reordered = [...list];
-      const [moved] = reordered.splice(oldIdx, 1);
-      reordered.splice(newIdx, 0, moved);
+    const ids = orderedImages.map((img) => img.id);
+    const from = ids.indexOf(Number(active.id));
+    const to = ids.indexOf(Number(over.id));
+    if (from === -1 || to === -1) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
 
-      const items = reordered.map((img, i) => ({ id: img.id, sort_order: i }));
-      try {
-        await reorderImages(items);
-        onRefresh();
-      } catch (err) {
-        console.error("Reorder failed:", err);
-      }
-    },
-    [onRefresh]
-  );
+    setOptimisticOrder(ids);
+    try {
+      await reorderImages(ids.map((id, i) => ({ id, sort_order: i })));
+      onRefresh();
+    } catch (err) {
+      console.error("Reorder failed:", err);
+      setOptimisticOrder(null);
+    }
+  });
 
   const handleDismissNoFace = async () => {
     if (!confirm("Delete all images where no face was detected?")) return;
@@ -405,20 +417,14 @@ export default function ImageLibrary({
   };
 
   // Split into three groups
-  const noFaceImages = images.filter((img) => !img.face_detected);
-  const faceImages = images.filter((img) => img.face_detected);
+  const noFaceImages = orderedImages.filter((img) => !img.face_detected);
+  const faceImages = orderedImages.filter((img) => img.face_detected);
   const recentImages = faceImages.filter((img) => recentUploadIds.has(img.id));
   // The main list always holds every photo, including ones just uploaded, so
   // it never looks out of date; "Just uploaded" is an extra shortcut on top.
   const previousImagesRaw = faceImages;
   const alignedCount = images.filter((img) => img.has_aligned).length;
   const failedCount = noFaceImages.length;
-
-  // Extract numeric part from filename for sorting
-  const getFilenameNumber = (filename: string): number => {
-    const match = filename.match(/\d+/);
-    return match ? parseInt(match[0], 10) : 0;
-  };
 
   // Filter and sort previous images
   const previousImagesFiltered = previousImagesRaw.filter((img) => {
@@ -442,16 +448,8 @@ export default function ImageLibrary({
     return false;
   });
 
-  const previousImages = [...previousImagesFiltered].sort((a, b) => {
-    const aNum = getFilenameNumber(a.original_filename);
-    const bNum = getFilenameNumber(b.original_filename);
-    
-    if (sortAscending) {
-      return aNum - bNum;
-    } else {
-      return bNum - aNum;
-    }
-  });
+  // Already in library order (oldest first); newest first just flips it.
+  const previousImages = sortAscending ? previousImagesFiltered : [...previousImagesFiltered].reverse();
 
   const cardProps = {
     deletingId,
@@ -482,7 +480,7 @@ export default function ImageLibrary({
         onDragCancel={() => onDraggingChange?.(false)}
         onDragEnd={(e) => {
           onDraggingChange?.(false);
-          handleDragEnd(e, list);
+          handleDragEnd(e);
         }}
       >
         <SortableContext

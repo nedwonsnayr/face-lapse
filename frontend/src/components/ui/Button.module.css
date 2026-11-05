@@ -125,7 +125,9 @@
   background: rgba(255, 253, 249, 0.92);
   color: var(--ink);
   box-shadow: var(--shadow-print);
-  backdrop-filter: blur(6px);
+  /* No backdrop-filter: these sit on every grid photo, and each blur becomes its
+     own compositing layer (2 per card), which made scrolling the library stall
+     the timelapse. At 92% opacity the blur wasn't visible anyway. */
 }
 .icon_overlay:hover:not(:disabled) {
   background: var(--surface);
