@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -56,6 +56,15 @@ const formatRowDate = (iso: string | null): string | null =>
 export type LibraryView = "grid" | "list";
 const VIEW_STORAGE_KEY = "face-lapse:library-view";
 
+/*
+ * Switching views swaps every card for a row (~1,000 of them), which blocks the
+ * main thread long enough to freeze the timelapse player. After a switch we
+ * render the first screenful at once and the rest in small batches, yielding
+ * between them so the player keeps getting frames.
+ */
+const FIRST_BATCH = 30;
+const NEXT_BATCH = 20;
+
 function loadView(): LibraryView {
   try {
     return localStorage.getItem(VIEW_STORAGE_KEY) === "list" ? "list" : "grid";
@@ -82,12 +91,15 @@ interface CardActionsProps {
   onRealign: (id: number) => void;
 }
 
-interface CardBodyProps extends CardActionsProps {
-  dragHandle?: React.ReactNode;
-}
+/*
+ * Card and row bodies are memoized and take only stable props, so rendering a
+ * new batch of items (or any other library re-render) skips the ones already
+ * on screen. The drag handle is rendered by SortableCard, outside the body,
+ * because its listeners change on every render.
+ */
 
 /** Thumbnail, hover actions, date and include toggle. Shared by sortable and static grids. */
-function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, dragHandle }: CardBodyProps) {
+const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign }: CardActionsProps) {
   const date = formatCardDate(img.photo_taken_at);
   const isRealigning = realigningId === img.id;
   const isDeleting = deletingId === img.id;
@@ -110,8 +122,6 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
           </div>
         )}
 
-        {dragHandle}
-
         <div className={cx(s.hoverActions, (isRealigning || isDeleting) && s.hoverActionsBusy)}>
           <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign }} variant="overlay" />
         </div>
@@ -125,7 +135,7 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
       </div>
     </>
   );
-}
+});
 
 /** Re-align + delete buttons, shared by grid cards (on hover) and list rows (always shown). */
 function PhotoActions({
@@ -183,11 +193,10 @@ function IncludeChip({ img, onToggle }: { img: ImageRecord; onToggle: (id: numbe
 }
 
 /** One row in list view: thumbnail, full date, source filename, and always-visible controls. */
-function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, dragHandle }: CardBodyProps) {
+const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign }: CardActionsProps) {
   const date = formatRowDate(img.photo_taken_at);
   return (
     <>
-      {dragHandle}
       <div className={s.rowThumb}>
         {img.has_aligned ? (
           <img
@@ -212,14 +221,14 @@ function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign,
       </div>
     </>
   );
-}
+});
 
 interface SortableCardProps extends CardActionsProps {
   testIdPrefix?: string;
   layout: LibraryView;
 }
 
-function SortableCard({ testIdPrefix = "image-card", layout, ...props }: SortableCardProps) {
+const SortableCard = memo(function SortableCard({ testIdPrefix = "image-card", layout, ...props }: SortableCardProps) {
   const { img } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: img.id,
@@ -250,9 +259,36 @@ function SortableCard({ testIdPrefix = "image-card", layout, ...props }: Sortabl
       )}
       data-testid={`${testIdPrefix}-${img.id}`}
     >
-      <Body {...props} dragHandle={handle} />
+      {isList && handle}
+      <Body {...props} />
+      {!isList && handle /* absolutely positioned over the photo */}
     </div>
   );
+});
+
+/** A card or row without drag-to-reorder (used while searching). */
+const StaticCard = memo(function StaticCard({ layout, ...props }: CardActionsProps & { layout: LibraryView }) {
+  const { img } = props;
+  const isList = layout === "list";
+  const Body = isList ? RowBody : CardBody;
+  return (
+    <div
+      className={cx(
+        isList ? s.row : s.card,
+        !img.included_in_video && (isList ? s.rowExcluded : s.cardExcluded)
+      )}
+      data-testid={`previous-image-card-${img.id}`}
+    >
+      <Body {...props} />
+    </div>
+  );
+});
+
+/** A callback whose identity never changes but always runs the latest closure. */
+function useStableCallback<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  const ref = useRef(fn);
+  ref.current = fn;
+  return useCallback((...args: A) => ref.current(...args), []);
 }
 
 /* ── Main component ───────────────────────────────────── */
@@ -273,8 +309,12 @@ export default function ImageLibrary({
   const [librarySearch, setLibrarySearch] = useState("");
   const [sortAscending, setSortAscending] = useState(true);
   const [view, setViewState] = useState<LibraryView>(loadView);
+  // How many items each section renders; Infinity = all (first load).
+  const [renderLimit, setRenderLimit] = useState(Infinity);
   const setView = (next: LibraryView) => {
+    if (next === view) return;
     setViewState(next);
+    setRenderLimit(FIRST_BATCH); // same render as the view change, so it never mounts everything at once
     try {
       localStorage.setItem(VIEW_STORAGE_KEY, next);
     } catch {
@@ -286,7 +326,14 @@ export default function ImageLibrary({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  const handleDelete = async (id: number) => {
+  useEffect(() => {
+    if (renderLimit >= images.length) return;
+    // A transition, so the player's frame updates can interrupt a batch.
+    const t = setTimeout(() => startTransition(() => setRenderLimit((n) => n + NEXT_BATCH)), 0);
+    return () => clearTimeout(t);
+  }, [renderLimit, images.length]);
+
+  const handleDelete = useStableCallback(async (id: number) => {
     if (!confirm("Delete this image?")) return;
     setDeletingId(id);
     try {
@@ -297,18 +344,18 @@ export default function ImageLibrary({
     } finally {
       setDeletingId(null);
     }
-  };
+  });
 
-  const handleToggle = async (id: number) => {
+  const handleToggle = useStableCallback(async (id: number) => {
     try {
       await toggleImage(id);
       onRefresh();
     } catch (err) {
       console.error("Toggle failed:", err);
     }
-  };
+  });
 
-  const handleRealign = async (id: number) => {
+  const handleRealign = useStableCallback(async (id: number) => {
     setRealigningId(id);
     try {
       await realignImage(id);
@@ -318,7 +365,7 @@ export default function ImageLibrary({
     } finally {
       setRealigningId(null);
     }
-  };
+  });
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent, list: ImageRecord[]) => {
@@ -415,23 +462,13 @@ export default function ImageLibrary({
   };
 
   const renderSortableGrid = (list: ImageRecord[], enableDrag: boolean = true, testIdPrefix: string = "image-card") => {
+    const visible = list.length > renderLimit ? list.slice(0, renderLimit) : list;
     if (!enableDrag) {
       // Non-sortable grid (search active: reordering a filtered subset would be ambiguous)
-      const isList = view === "list";
-      const Body = isList ? RowBody : CardBody;
       return (
-        <div className={isList ? s.list : s.grid}>
-          {list.map((img) => (
-            <div
-              key={img.id}
-              className={cx(
-                isList ? s.row : s.card,
-                !img.included_in_video && (isList ? s.rowExcluded : s.cardExcluded)
-              )}
-              data-testid={`previous-image-card-${img.id}`}
-            >
-              <Body img={img} {...cardProps} />
-            </div>
+        <div className={view === "list" ? s.list : s.grid}>
+          {visible.map((img) => (
+            <StaticCard key={img.id} img={img} {...cardProps} layout={view} />
           ))}
         </div>
       );
@@ -449,11 +486,11 @@ export default function ImageLibrary({
         }}
       >
         <SortableContext
-          items={list.map((img) => img.id)}
+          items={list.map((img) => img.id)} // all ids, even before they render: keeps the context stable across batches
           strategy={view === "list" ? verticalListSortingStrategy : rectSortingStrategy}
         >
           <div className={view === "list" ? s.list : s.grid} data-testid="library-items" data-view={view}>
-            {list.map((img) => (
+            {visible.map((img) => (
               <SortableCard key={img.id} img={img} {...cardProps} testIdPrefix={testIdPrefix} layout={view} />
             ))}
           </div>
