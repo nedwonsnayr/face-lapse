@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Nightly encrypted backup of Face Lapse data to Backblaze B2 via restic.
 # Runs as root from cron (see server-setup.sh). Needs RESTIC_* and B2_* in .env.
-# Videos are excluded: they're regenerated from the aligned images.
+# Videos and thumbs are excluded: both are regenerated from the aligned images.
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,6 +21,7 @@ restic cat config >/dev/null 2>&1 || restic init
 
 restic backup "$DATA" \
   --exclude "$DATA/videos" \
+  --exclude "$DATA/thumbs" \
   --exclude "$DATA/face_lapse.db" \
   --exclude "$DATA/face_lapse.db-*" \
   --tag nightly

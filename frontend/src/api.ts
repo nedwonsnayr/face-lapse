@@ -315,13 +315,29 @@ export async function generateVideo(
   };
 }
 
+/**
+ * Image sizes the server can return:
+ * - "thumb": ≤300×400 (~12 KB), for library tiles and the staging tray
+ * - "frame": ≤600×800 (~45 KB), for the timelapse player
+ * - "full": the stored file (aligned ~450 KB; originals can be several MB)
+ */
+export type ImageSize = "thumb" | "frame" | "full";
+
 // Image responses are cached for a year, so the URL must change with the
 // content: IDs can be reused after a delete. `version` is the content hash.
-export function getAlignedImageUrl(id: number, version?: string): string {
-  return `${API_BASE}/images/${id}/aligned${version ? `?v=${version}` : ""}`;
+function imageUrl(id: number, kind: "aligned" | "original", version?: string, size: ImageSize = "full"): string {
+  const params = new URLSearchParams();
+  if (version) params.set("v", version);
+  if (size !== "full") params.set("size", size);
+  const qs = params.toString();
+  return `${API_BASE}/images/${id}/${kind}${qs ? `?${qs}` : ""}`;
 }
 
-export function getOriginalImageUrl(id: number, version?: string): string {
-  return `${API_BASE}/images/${id}/original${version ? `?v=${version}` : ""}`;
+export function getAlignedImageUrl(id: number, version?: string, size: ImageSize = "full"): string {
+  return imageUrl(id, "aligned", version, size);
+}
+
+export function getOriginalImageUrl(id: number, version?: string, size: ImageSize = "full"): string {
+  return imageUrl(id, "original", version, size);
 }
 

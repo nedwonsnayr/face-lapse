@@ -91,3 +91,31 @@ test.describe("Face Lapse – library stays in sync", () => {
     expect(again.status()).toBe(304);
   });
 });
+
+test.describe("Face Lapse – image sizes", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await deleteAllImages(page);
+  });
+
+  test.afterEach(async ({ page }) => {
+    await deleteAllImages(page);
+  });
+
+  test("library and player load small copies, not full-size images", async ({ page }) => {
+    const id = await addFromOtherDevice(page, WITH_FACE[0], true);
+    const full = (await (await page.request.get(`/api/images/${id}/aligned`)).body()).length;
+    const thumb = (await (await page.request.get(`/api/images/${id}/aligned?size=thumb`)).body()).length;
+    const frame = (await (await page.request.get(`/api/images/${id}/aligned?size=frame`)).body()).length;
+    expect(thumb).toBeLessThan(full / 5);
+    expect(frame).toBeLessThan(full / 2);
+
+    await page.reload();
+    await expect(page.getByTestId(`previous-image-card-${id}`).locator("img")).toHaveAttribute("src", /size=thumb/);
+    await expect(page.getByTestId("timelapse-frame")).toHaveAttribute("src", /size=frame/);
+    // The image actually decodes (not a broken link)
+    await expect
+      .poll(() => page.getByTestId("timelapse-frame").evaluate((el: HTMLImageElement) => el.naturalWidth))
+      .toBeGreaterThan(0);
+  });
+});

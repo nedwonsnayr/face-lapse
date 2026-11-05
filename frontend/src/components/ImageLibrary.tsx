@@ -75,7 +75,7 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
       <div className={s.thumbWrap}>
         {img.has_aligned ? (
           <img
-            src={getAlignedImageUrl(img.id, img.content_hash)}
+            src={getAlignedImageUrl(img.id, img.content_hash, "thumb")}
             alt={date ? `Photo from ${date}` : img.original_filename}
             className={s.thumbnail}
             loading="lazy"
@@ -443,7 +443,7 @@ export default function ImageLibrary({
                       <div key={img.id} className={cx(s.card, s.noFaceCard)} data-testid={`no-face-card-${img.id}`}>
                         <div className={s.thumbWrap}>
                           <img
-                            src={getOriginalImageUrl(img.id, img.content_hash)}
+                            src={getOriginalImageUrl(img.id, img.content_hash, "thumb")}
                             alt={img.original_filename}
                             className={s.thumbnail}
                             loading="lazy"
