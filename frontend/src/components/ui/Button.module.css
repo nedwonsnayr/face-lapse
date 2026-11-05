@@ -1,0 +1,140 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.sm {
+  font-size: var(--text-sm);
+  padding: 5px 10px;
+}
+.md {
+  font-size: var(--text-md);
+  padding: 8px 14px;
+}
+.lg {
+  font-size: var(--text-lg);
+  padding: 12px 20px;
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.primary {
+  background: var(--ink);
+  color: var(--surface);
+}
+.primary:hover:not(:disabled) {
+  background: var(--ink-soft);
+}
+
+.secondary {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+.secondary:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.ghost {
+  color: var(--muted);
+}
+.ghost:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-deep);
+}
+
+.danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--surface);
+}
+.danger:hover:not(:disabled) {
+  background: var(--danger-wash);
+}
+
+/* ── Icon buttons ─────────────────────────────────── */
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+
+.iconBtn:disabled {
+  opacity: 0.45;
+}
+
+.icon_sm {
+  width: 28px;
+  height: 28px;
+}
+.icon_md {
+  width: 34px;
+  height: 34px;
+}
+.icon_lg {
+  width: 48px;
+  height: 48px;
+}
+
+.icon_plain {
+  color: var(--muted);
+}
+.icon_plain:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--paper-deep);
+}
+
+.icon_solid {
+  background: var(--ink);
+  color: var(--surface);
+}
+.icon_solid:hover:not(:disabled) {
+  background: var(--ink-soft);
+}
+.icon_solid:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.icon_overlay {
+  background: rgba(255, 253, 249, 0.92);
+  color: var(--ink);
+  box-shadow: var(--shadow-print);
+  backdrop-filter: blur(6px);
+}
+.icon_overlay:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.tone_danger.icon_plain:hover:not(:disabled),
+.tone_danger.icon_overlay:hover:not(:disabled) {
+  color: var(--danger);
+}
+.tone_accent.icon_plain:hover:not(:disabled),
+.tone_accent.icon_overlay:hover:not(:disabled) {
+  color: var(--accent);
+}

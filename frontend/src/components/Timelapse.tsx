@@ -2,7 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { generateVideo, getAlignedImageUrl, ImageRecord } from "../api";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
-import styles from "./Timelapse.styles";
+import { Button, IconButton } from "./ui/Button";
+import cx from "./ui/cx";
+import forms from "./ui/forms.module.css";
+import s from "./Timelapse.module.css";
 
 interface TimelapseProps {
   /** Included+aligned images, in display order */
@@ -83,10 +86,12 @@ export default function Timelapse({ images }: TimelapseProps) {
 
   if (images.length === 0) {
     return (
-      <div style={styles.section}>
-        <h2 style={styles.heading}>Timelapse</h2>
-        <div style={styles.empty}>
-          <p data-testid="empty-timelapse-message" style={styles.emptyText}>
+      <div className={s.section}>
+        <div className={s.header}>
+          <p className={forms.eyebrow}>Timelapse</p>
+        </div>
+        <div className={s.emptyMat}>
+          <p data-testid="empty-timelapse-message" className={s.emptyText}>
             No aligned images yet. Upload and align some selfies to see the
             timelapse.
           </p>
@@ -126,129 +131,150 @@ export default function Timelapse({ images }: TimelapseProps) {
     : null;
   const currentAge = showAge ? calculateAge(currentImage?.photo_taken_at || null) : null;
 
-  return (
-    <div style={styles.section}>
-      <h2 style={styles.heading}>Timelapse</h2>
+  const scrubFill = images.length > 1 ? (safeIndex / (images.length - 1)) * 100 : 0;
+  const totalSeconds = images.length * frameDuration;
 
-      {/* Slideshow */}
-      <div data-testid="timelapse-player" style={styles.player}>
-        {currentImage && (
-          <img
-            data-testid="timelapse-frame"
-            src={getAlignedImageUrl(currentImage.id)}
-            alt={`Frame ${safeIndex + 1}`}
-            style={styles.frame}
-          />
-        )}
-        {showDates && currentDate && (
-          <div data-testid="timelapse-date-overlay" style={styles.dateOverlay}>
-            <div>{currentDate}</div>
-            {showAge && currentAge !== null && (
-              <div style={styles.ageText}>Age: {currentAge}</div>
-            )}
-          </div>
-        )}
+  return (
+    <div className={s.section}>
+      <div className={s.header}>
+        <p className={forms.eyebrow}>Timelapse</p>
+        <span data-testid="frame-counter" className={s.counter}>
+          {safeIndex + 1} / {images.length}
+        </span>
       </div>
 
-      {/* Controls */}
-      <div style={styles.controls}>
-        <div style={styles.scrubRow}>
-          <button data-testid="play-pause-button" style={styles.playBtn} onClick={togglePlay}>
-            {isPlaying ? "⏸" : "▶"}
-          </button>
-          <input
-            data-testid="timelapse-scrubber"
-            type="range"
-            min={0}
-            max={images.length - 1}
-            value={safeIndex}
-            onChange={(e) => {
-              const newIndex = parseInt(e.target.value, 10);
-              setCurrentIndex(Math.min(newIndex, images.length - 1));
-              setIsPlaying(false);
-            }}
-            style={styles.scrubber}
-          />
-          <span data-testid="frame-counter" style={styles.scrubLabel}>
-            {safeIndex + 1} / {images.length}
-          </span>
+      {/* Player: the frame sits in a dark mat, like a print */}
+      <figure className={s.figure}>
+        <div data-testid="timelapse-player" className={s.mat}>
+          {currentImage && (
+            <img
+              data-testid="timelapse-frame"
+              src={getAlignedImageUrl(currentImage.id)}
+              alt={`Frame ${safeIndex + 1}`}
+              className={s.frame}
+            />
+          )}
         </div>
+        <figcaption className={s.caption}>
+          {showDates && currentDate ? (
+            <div data-testid="timelapse-date-overlay" className={s.captionInner}>
+              <span className={s.captionDate}>{currentDate}</span>
+              {showAge && currentAge !== null && (
+                <span className={s.captionAge}>Age {currentAge}</span>
+              )}
+            </div>
+          ) : (
+            <span className={s.captionPlaceholder} aria-hidden="true" />
+          )}
+        </figcaption>
+      </figure>
+
+      {/* Transport */}
+      <div className={s.transport}>
+        <IconButton
+          data-testid="play-pause-button"
+          icon={isPlaying ? "pause" : "play"}
+          label={isPlaying ? "Pause" : "Play"}
+          variant="solid"
+          size="lg"
+          onClick={togglePlay}
+        />
+        <input
+          data-testid="timelapse-scrubber"
+          type="range"
+          aria-label="Scrub frames"
+          min={0}
+          max={images.length - 1}
+          value={safeIndex}
+          onChange={(e) => {
+            const newIndex = parseInt(e.target.value, 10);
+            setCurrentIndex(Math.min(newIndex, images.length - 1));
+            setIsPlaying(false);
+          }}
+          className={forms.range}
+          style={{ "--fill": `${scrubFill}%` } as React.CSSProperties}
+        />
+      </div>
+
+      {/* Settings */}
+      <div className={s.panel}>
+        <p className={cx(forms.eyebrow, s.panelTitle)}>Settings</p>
 
         <SpeedSlider value={frameDuration} onChange={setFrameDuration} />
 
-        <div style={styles.toggleRow}>
-          <label style={styles.toggleLabel}>
+        <div className={s.toggles}>
+          <label className={forms.checkRow}>
             <input
               data-testid="show-dates-toggle"
               type="checkbox"
               checked={showDates}
               onChange={(e) => setShowDates(e.target.checked)}
-              style={styles.toggleInput}
+              className={forms.checkbox}
             />
             Show date
           </label>
-        </div>
 
-        <div style={{
-          ...styles.toggleRow,
-          ...(!showDates ? styles.toggleRowDisabled : {}),
-        }}>
-          <label style={{
-            ...styles.toggleLabel,
-            ...(!showDates ? styles.toggleLabelDisabled : {}),
-          }}>
-            <input
-              data-testid="show-age-toggle"
-              type="checkbox"
-              checked={showAge}
-              onChange={(e) => setShowAge(e.target.checked)}
-              disabled={!showDates}
-              style={styles.toggleInput}
-            />
-            <span>Show age</span>
-          </label>
-          <div style={styles.birthdayContainer}>
-            <label style={{
-              ...styles.birthdayLabel,
-              ...(!showDates ? styles.birthdayLabelDisabled : {}),
-            }} htmlFor="birthday-input">
-              Birthday:
+          <div className={s.ageRow}>
+            <label className={forms.checkRow} data-disabled={!showDates}>
+              <input
+                data-testid="show-age-toggle"
+                type="checkbox"
+                checked={showAge}
+                onChange={(e) => setShowAge(e.target.checked)}
+                disabled={!showDates}
+                className={forms.checkbox}
+              />
+              <span>Show age</span>
             </label>
-            <DatePicker
-              id="birthday-input"
-              data-testid="birthday-input"
-              value={birthday}
-              onChange={setBirthday}
-              disabled={!showAge || !showDates}
-            />
+            <div className={s.birthday}>
+              <label
+                className={cx(s.birthdayLabel, !showDates && s.birthdayLabelDisabled)}
+                htmlFor="birthday-input"
+              >
+                Birthday
+              </label>
+              <DatePicker
+                id="birthday-input"
+                data-testid="birthday-input"
+                value={birthday}
+                onChange={setBirthday}
+                disabled={!showAge || !showDates}
+              />
+            </div>
           </div>
         </div>
+      </div>
 
-        <div style={styles.info}>
-          <p style={styles.infoText}>
-            Duration:{" "}
-            <strong>
-              {(images.length * frameDuration).toFixed(1)}s
-            </strong>{" "}
-            ({images.length} frames)
-          </p>
-        </div>
-
-        <button
+      {/* Export */}
+      <div className={s.export}>
+        <dl className={s.summary}>
+          <div>
+            <dt>Length</dt>
+            <dd>{totalSeconds.toFixed(1)}s</dd>
+          </div>
+          <div>
+            <dt>Frames</dt>
+            <dd>{images.length.toLocaleString()}</dd>
+          </div>
+        </dl>
+        <Button
           data-testid="download-video-button"
-          style={{
-            ...styles.downloadBtn,
-            ...(isGenerating ? styles.downloadBtnDisabled : {}),
-          }}
+          variant="primary"
+          size="lg"
+          icon="download"
+          block
           onClick={handleDownload}
           disabled={isGenerating}
         >
           {isGenerating ? "Generating..." : "Download Video"}
-        </button>
+        </Button>
 
-        {error && <p data-testid="timelapse-error" style={styles.error}>{error}</p>}
+        {error && (
+          <p data-testid="timelapse-error" className={s.error}>
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
 }
-
