@@ -1,2 +1,4 @@
-# Handoff → SDE (cloud-hosting)
-Implement tasks 2–7 from `status.md` per spec `specs/2026-11-05-cloud-hosting-design.md` and ADR-003. Every production behaviour must be gated on env vars, so e2e tests keep passing unchanged. Tasks 8–9 need the user to create the Oracle, Cloudflare and B2 accounts.
+# Handoff → user (account setup) → DevOps (go-live)
+The code is done and tested locally on branch `cloud-hosting` (not pushed).
+Next: the user follows `docs/hosting.md` §1 (Oracle, Cloudflare domain/tunnel/Access, B2, healthchecks) and shares the server IP and team domain, but no secrets.
+Then do task 9: `deploy.sh`, `server-setup.sh`, the user writes `.env`, rsync the data, first backup, time video generation (decides whether it needs a background job), optionally set up the GH deploy (§3).
