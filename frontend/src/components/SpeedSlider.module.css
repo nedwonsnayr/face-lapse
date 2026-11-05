@@ -1,0 +1,39 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: var(--text-md);
+  color: var(--ink);
+}
+
+.readout {
+  display: inline-flex;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.value {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fps {
+  color: var(--muted);
+}
+
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--faint);
+}

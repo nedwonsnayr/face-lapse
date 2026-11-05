@@ -1,4 +1,8 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
+import { IconButton } from "./ui/Button";
+import cx from "./ui/cx";
+import forms from "./ui/forms.module.css";
+import s from "./DatePicker.module.css";
 
 interface DatePickerProps {
   value: string; // YYYY-MM-DD format
@@ -174,7 +178,7 @@ export default function DatePicker({
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", display: "inline-block" }}>
+    <div ref={containerRef} className={s.container}>
       <input
         id={id}
         data-testid={dataTestId}
@@ -182,213 +186,76 @@ export default function DatePicker({
         value={formatDisplayDate(value)}
         readOnly
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        style={{
-          padding: "4px 8px",
-          fontSize: 13,
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-sm)",
-          background: disabled ? "var(--surface)" : "var(--bg)",
-          color: disabled ? "var(--text-muted)" : "var(--text)",
-          cursor: disabled ? "not-allowed" : "pointer",
-          opacity: disabled ? 0.5 : 1,
-          width: "140px",
+        onKeyDown={(e) => {
+          if (!disabled && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+          } else if (e.key === "Escape") {
+            setIsOpen(false);
+          }
         }}
+        disabled={disabled}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        className={cx(forms.field, s.input)}
       />
       {isOpen && !disabled && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "100%",
-            left: 0,
-            marginBottom: 4,
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            padding: 12,
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-            zIndex: 1000,
-            minWidth: 280,
-          }}
-        >
+        <div className={s.popover} role="dialog" aria-label="Choose birthday">
           {/* Header with month/year navigation */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 12,
-            }}
-          >
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: 16,
-                cursor: "pointer",
-                color: "var(--text)",
-                padding: "4px 8px",
-              }}
-              title="Previous month"
-            >
-              ‹
-            </button>
-            <div style={{ position: "relative", flex: 1, display: "flex", justifyContent: "center", gap: 4 }}>
+          <div className={s.header}>
+            <IconButton icon="chevronLeft" label="Previous month" size="sm" onClick={handlePrevMonth} />
+            <div className={s.headerCenter}>
               <button
                 type="button"
+                className={s.headerBtn}
                 onClick={() => {
                   setShowMonthPicker(!showMonthPicker);
                   setShowYearPicker(false);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  color: "var(--text)",
-                  padding: "4px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  transition: "background 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--surface)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 {monthNames[month]}
               </button>
               <button
                 type="button"
+                className={s.headerBtn}
                 onClick={() => {
                   setShowYearPicker(!showYearPicker);
                   setShowMonthPicker(false);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  color: "var(--text)",
-                  padding: "4px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  transition: "background 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--surface)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 {year}
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: 16,
-                cursor: "pointer",
-                color: "var(--text)",
-                padding: "4px 8px",
-              }}
-              title="Next month"
-            >
-              ›
-            </button>
+            <IconButton icon="chevronRight" label="Next month" size="sm" onClick={handleNextMonth} />
           </div>
 
           {/* Day names header */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: 4,
-              marginBottom: 8,
-            }}
-          >
+          <div className={s.weekdays}>
             {dayNames.map((day) => (
-              <div
-                key={day}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: "var(--text-muted)",
-                  textAlign: "center",
-                  padding: "4px 0",
-                }}
-              >
-                {day}
+              <div key={day} className={s.weekday}>
+                {day.slice(0, 2)}
               </div>
             ))}
           </div>
 
           {/* Calendar grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: 4,
-            }}
-          >
+          <div className={s.days}>
             {days.map((day, idx) => {
               if (day === null) {
                 return <div key={`empty-${idx}`} />;
               }
 
               const cellDate = new Date(year, month, day);
-              const isSelected =
-                selectedDate &&
-                cellDate.getTime() === selectedDate.getTime();
-              const isToday =
-                cellDate.toDateString() === new Date().toDateString();
+              const isSelected = !!selectedDate && cellDate.getTime() === selectedDate.getTime();
+              const isToday = cellDate.toDateString() === new Date().toDateString();
 
               return (
                 <button
                   key={day}
                   type="button"
                   onClick={() => handleDateClick(day)}
-                  style={{
-                    background: isSelected
-                      ? "var(--primary)"
-                      : isToday
-                      ? "var(--surface)"
-                      : "transparent",
-                    border: isToday
-                      ? "1px solid var(--primary)"
-                      : "1px solid transparent",
-                    borderRadius: "var(--radius-sm)",
-                    color: isSelected
-                      ? "#fff"
-                      : isToday
-                      ? "var(--primary)"
-                      : "var(--text)",
-                    fontSize: 13,
-                    padding: "6px",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background = "var(--surface)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) {
-                      e.currentTarget.style.background =
-                        isToday
-                          ? "var(--surface)"
-                          : "transparent";
-                    }
-                  }}
+                  aria-pressed={isSelected}
+                  className={cx(s.day, isToday && s.dayToday, isSelected && s.daySelected)}
                 >
                   {day}
                 </button>
@@ -397,143 +264,55 @@ export default function DatePicker({
           </div>
 
           {/* Today button */}
-          <div style={{ marginTop: 12, textAlign: "center" }}>
-            <button
-              type="button"
-              onClick={handleToday}
-              style={{
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text)",
-                fontSize: 12,
-                padding: "4px 12px",
-                cursor: "pointer",
-              }}
-            >
+          <div className={s.footer}>
+            <button type="button" className={s.todayBtn} onClick={handleToday}>
               Today
             </button>
           </div>
 
           {/* Month picker dropdown */}
           {showMonthPicker && (
-            <div
-              ref={monthPickerRef}
-              style={{
-                position: "absolute",
-                top: 60,
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius)",
-                padding: 8,
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                zIndex: 1001,
-                minWidth: 120,
-                maxHeight: 300,
-                overflowY: "auto",
-              }}
-            >
-          {monthNames.map((monthName, idx) => (
-            <button
-              key={idx}
-              ref={(el) => {
-                if (el) {
-                  monthButtonRefs.current.set(idx, el);
-                } else {
-                  monthButtonRefs.current.delete(idx);
-                }
-              }}
-              type="button"
-              onClick={() => handleMonthSelect(idx)}
-              style={{
-                width: "100%",
-                background: month === idx ? "var(--primary)" : "transparent",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                color: month === idx ? "#fff" : "var(--text)",
-                fontSize: 13,
-                padding: "6px 12px",
-                cursor: "pointer",
-                textAlign: "left",
-                transition: "background 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (month !== idx) {
-                  e.currentTarget.style.background = "var(--surface)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (month !== idx) {
-                  e.currentTarget.style.background = "transparent";
-                }
-              }}
-            >
-              {monthName}
-            </button>
-          ))}
-          </div>
+            <div ref={monthPickerRef} className={s.listbox}>
+              {monthNames.map((monthName, idx) => (
+                <button
+                  key={idx}
+                  ref={(el) => {
+                    if (el) {
+                      monthButtonRefs.current.set(idx, el);
+                    } else {
+                      monthButtonRefs.current.delete(idx);
+                    }
+                  }}
+                  type="button"
+                  onClick={() => handleMonthSelect(idx)}
+                  className={cx(s.option, month === idx && s.optionSelected)}
+                >
+                  {monthName}
+                </button>
+              ))}
+            </div>
           )}
 
           {/* Year picker dropdown */}
           {showYearPicker && (
-            <div
-              ref={yearPickerRef}
-              style={{
-                position: "absolute",
-                top: 60,
-                left: "50%",
-                transform: "translateX(-50%)",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius)",
-                padding: 8,
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                zIndex: 1001,
-                minWidth: 100,
-                maxHeight: 300,
-                overflowY: "auto",
-              }}
-            >
-          {years.map((yr) => (
-            <button
-              key={yr}
-              ref={(el) => {
-                if (el) {
-                  yearButtonRefs.current.set(yr, el);
-                } else {
-                  yearButtonRefs.current.delete(yr);
-                }
-              }}
-              type="button"
-              onClick={() => handleYearSelect(yr)}
-              style={{
-                width: "100%",
-                background: year === yr ? "var(--primary)" : "transparent",
-                border: "none",
-                borderRadius: "var(--radius-sm)",
-                color: year === yr ? "#fff" : "var(--text)",
-                fontSize: 13,
-                padding: "6px 12px",
-                cursor: "pointer",
-                textAlign: "center",
-                transition: "background 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (year !== yr) {
-                  e.currentTarget.style.background = "var(--surface)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (year !== yr) {
-                  e.currentTarget.style.background = "transparent";
-                }
-              }}
-            >
-              {yr}
-            </button>
-          ))}
+            <div ref={yearPickerRef} className={cx(s.listbox, s.listboxYears)}>
+              {years.map((yr) => (
+                <button
+                  key={yr}
+                  ref={(el) => {
+                    if (el) {
+                      yearButtonRefs.current.set(yr, el);
+                    } else {
+                      yearButtonRefs.current.delete(yr);
+                    }
+                  }}
+                  type="button"
+                  onClick={() => handleYearSelect(yr)}
+                  className={cx(s.option, s.optionCenter, year === yr && s.optionSelected)}
+                >
+                  {yr}
+                </button>
+              ))}
             </div>
           )}
         </div>

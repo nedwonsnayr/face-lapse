@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   uploadImages,
   alignImages,
@@ -9,15 +16,32 @@ import {
   AlignResponse,
   UploadProgress,
 } from "../api";
-import styles from "./Upload.styles";
+import { Button, IconButton } from "./ui/Button";
+import Icon from "./ui/Icon";
+import cx from "./ui/cx";
+import s from "./Upload.module.css";
 
 interface UploadProps {
   onAlignComplete: (result: AlignResponse) => void;
+  /** Library already has photos: show a slim drop strip instead of the big empty state. */
+  compact?: boolean;
+}
+
+/** Lets the app shell (top-bar button, drop-anywhere overlay) drive uploads. */
+export interface UploadHandle {
+  openFilePicker: () => void;
+  addFiles: (files: File[]) => void;
 }
 
 type Stage = "idle" | "uploading" | "staging" | "aligning";
 
-export default function Upload({ onAlignComplete }: UploadProps) {
+const DUPLICATE_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ede8df' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='sans-serif' font-size='11' fill='%23a29c92'%3EDuplicate%3C/text%3E%3C/svg%3E";
+
+const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
+  { onAlignComplete, compact = false },
+  ref
+) {
   const [isDragging, setIsDragging] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
   const [uploadCurrent, setUploadCurrent] = useState(0);
@@ -263,15 +287,18 @@ export default function Upload({ onAlignComplete }: UploadProps) {
   const nonDuplicateCount = stagedImages.filter((img) => !img.skipped).length;
   const canAlign = nonDuplicateCount > 0;
 
-  // Cleanup webcam on unmount
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-    };
-  }, []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      openFilePicker: () => {
+        if (stage === "idle") fileInputRef.current?.click();
+      },
+      addFiles: (files: File[]) => {
+        if (stage === "idle") handleFiles(files);
+      },
+    }),
+    [stage, handleFiles]
+  );
 
   // Cleanup webcam on unmount
   useEffect(() => {
@@ -282,180 +309,240 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       }
     };
   }, []);
+
+  const uploadPercent =
+    uploadTotal > 0 ? Math.round((uploadCurrent / uploadTotal) * 100) : 0;
 
   return (
-    <div style={styles.section}>
-      <h2 style={styles.heading}>Upload Selfies</h2>
+    <div className={s.section}>
+      {/* Single file input for the whole app (top bar, dropzone and tests all use it) */}
+      <input
+        data-testid="file-input"
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleInputChange}
+        hidden
+      />
 
-      {/* Drop zone — only shown in idle / uploading states */}
+      {/* Drop zone: big empty state, or a slim strip once the library has photos */}
       {(stage === "idle" || stage === "uploading") && (
         <div
           data-testid="dropzone"
+          role="button"
+          tabIndex={stage === "idle" ? 0 : -1}
+          aria-label="Add photos"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={handleClick}
-          style={{
-            ...styles.dropzone,
-            ...(isDragging ? styles.dropzoneActive : {}),
-            ...(stage === "uploading" ? styles.dropzoneUploading : {}),
+          onKeyDown={(e) => {
+            if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              handleClick();
+            }
           }}
+          className={cx(
+            s.dropzone,
+            compact ? s.dropzoneCompact : s.dropzoneHero,
+            isDragging && s.dropzoneActive,
+            stage === "uploading" && s.dropzoneUploading
+          )}
         >
-          <input
-            data-testid="file-input"
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleInputChange}
-            style={{ display: "none" }}
-          />
-
           {stage === "uploading" ? (
-            <div data-testid="upload-progress" style={styles.uploadProgress}>
-              <div style={styles.progressBarOuter}>
-                <div
-                  data-testid="upload-progress-bar"
-                  style={{
-                    ...styles.progressBarInner,
-                    width: `${uploadTotal > 0 ? Math.round((uploadCurrent / uploadTotal) * 100) : 0}%`,
-                  }}
-                />
-              </div>
-              <p data-testid="upload-progress-text" style={styles.progressText}>
+            <div data-testid="upload-progress" className={s.progress}>
+              <p data-testid="upload-progress-text" className={s.progressText}>
                 Uploading {uploadCurrent} of {uploadTotal} files...
               </p>
+              <div className={s.progressTrack}>
+                <div
+                  data-testid="upload-progress-bar"
+                  className={s.progressFill}
+                  style={{ width: `${uploadPercent}%` }}
+                />
+              </div>
             </div>
+          ) : compact ? (
+            <>
+              <span className={s.compactIcon}>
+                <Icon name="upload" size={18} />
+              </span>
+              <div className={s.compactText}>
+                <p data-testid="dropzone-text" className={s.dropText}>
+                  Drop images here or click to browse
+                </p>
+                <p className={s.dropSubtext}>JPG, PNG, WebP, HEIC</p>
+              </div>
+              <Button
+                data-testid="webcam-button"
+                size="sm"
+                icon="camera"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startWebcam();
+                }}
+              >
+                Take Photo
+              </Button>
+            </>
           ) : (
             <>
-              <div style={styles.icon}>+</div>
-              <p data-testid="dropzone-text" style={styles.dropText}>Drop images here or click to browse</p>
-              <p style={styles.dropSubtext}>Supports JPG, PNG, WebP, HEIC</p>
-              <div style={styles.dropzoneActions}>
-                <button
+              <p className={s.heroEyebrow}>Face Lapse</p>
+              <h2 className={s.heroTitle}>
+                Start your <em>timelapse</em>
+              </h2>
+              <p data-testid="dropzone-text" className={s.heroText}>
+                Drop images here or click to browse
+              </p>
+              <p className={s.dropSubtext}>
+                Selfies are sorted by photo date and aligned by eye position. JPG, PNG, WebP, HEIC.
+              </p>
+              <div className={s.heroActions}>
+                <Button
+                  variant="primary"
+                  icon="plus"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleClick();
+                  }}
+                >
+                  Choose photos
+                </Button>
+                <Button
                   data-testid="webcam-button"
-                  style={styles.webcamButton}
+                  icon="camera"
                   onClick={(e) => {
                     e.stopPropagation();
                     startWebcam();
                   }}
                 >
-                  📷 Take Photo
-                </button>
+                  Take Photo
+                </Button>
               </div>
             </>
           )}
         </div>
       )}
 
-      {/* Staging area — review uploaded originals */}
+      {/* Staging tray: review uploaded originals before aligning */}
       {stage === "staging" && (
-        <div style={styles.stagingContainer}>
-          <div style={styles.stagingHeader}>
-            <span data-testid="staging-image-count" style={styles.stagingTitle}>
-              {stagedImages.length} image{stagedImages.length !== 1 ? "s" : ""}{" "}
-              {nonDuplicateCount > 0 && `(${nonDuplicateCount} ready to align)`}
-            </span>
-            <button data-testid="cancel-staged-button" style={styles.cancelBtn} onClick={handleCancelStaged}>
-              Cancel
-            </button>
+        <div className={s.tray}>
+          <div className={s.trayHeader}>
+            <div>
+              <p className={s.eyebrow}>Ready to align</p>
+              <span data-testid="staging-image-count" className={s.trayTitle}>
+                {stagedImages.length} image{stagedImages.length !== 1 ? "s" : ""}{" "}
+                {nonDuplicateCount > 0 && `(${nonDuplicateCount} ready to align)`}
+              </span>
+            </div>
+            <div className={s.trayActions}>
+              <Button data-testid="cancel-staged-button" variant="ghost" onClick={handleCancelStaged}>
+                Cancel
+              </Button>
+              <Button
+                data-testid="align-images-button"
+                variant="primary"
+                onClick={handleAlign}
+                disabled={!canAlign}
+              >
+                {canAlign
+                  ? "Align Images"
+                  : duplicateCount > 0
+                  ? "No new images to align"
+                  : "Align Images"}
+              </Button>
+            </div>
           </div>
 
           {duplicateCount > 0 && (
-            <div data-testid="duplicate-warning" style={styles.duplicateMessage}>
-              <span style={styles.duplicateIcon}>⚠️</span>
+            <div data-testid="duplicate-warning" className={s.notice}>
+              <Icon name="alert" size={16} />
               <span>
                 {duplicateCount} duplicate{duplicateCount !== 1 ? "s" : ""} detected and will not be used for alignment.
               </span>
             </div>
           )}
 
-          <div data-testid="staging-grid" style={styles.stagingGrid}>
+          <div data-testid="staging-grid" className={s.stagingGrid}>
             {stagedImages.map((img, idx) => (
-              <div 
-                key={`${img.id}-${img.source_filename || img.original_filename}-${idx}`} 
+              <figure
+                key={`${img.id}-${img.source_filename || img.original_filename}-${idx}`}
                 data-testid={img.skipped ? "staging-item-duplicate" : "staging-item-new"}
-                style={styles.stagingItem}
+                className={cx(s.stagingItem, img.skipped && s.stagingItemDuplicate)}
               >
-                <img
-                  src={img.id > 0 ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.source_filename || img.original_filename}` : "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ccc' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999'%3EDuplicate%3C/text%3E%3C/svg%3E"}
-                  alt={img.source_filename || img.original_filename}
-                  style={{
-                    ...styles.stagingThumb,
-                    ...(img.skipped ? styles.stagingThumbDuplicate : {}),
-                  }}
-                />
-                {img.skipped && (
-                  <div data-testid="duplicate-badge" style={styles.duplicateBadge}>Duplicate</div>
-                )}
-                {!img.skipped && (
-                  <button
-                    data-testid="remove-staged-button"
-                    style={styles.removeBtn}
-                    onClick={() => handleRemoveStaged(img.id)}
-                    title="Remove"
-                  >
-                    ×
-                  </button>
-                )}
-                <div style={styles.stagingLabelContainer}>
-                  <span style={styles.stagingLabel}>
+                <div className={s.stagingThumbWrap}>
+                  <img
+                    src={
+                      img.id > 0
+                        ? `${getOriginalImageUrl(img.id)}?v=${img.id}-${img.source_filename || img.original_filename}`
+                        : DUPLICATE_PLACEHOLDER
+                    }
+                    alt={img.source_filename || img.original_filename}
+                    className={s.stagingThumb}
+                  />
+                  {img.skipped && (
+                    <span data-testid="duplicate-badge" className={s.duplicateBadge}>
+                      Duplicate
+                    </span>
+                  )}
+                  {!img.skipped && (
+                    <IconButton
+                      data-testid="remove-staged-button"
+                      icon="close"
+                      label="Remove"
+                      variant="overlay"
+                      size="sm"
+                      tone="danger"
+                      className={s.removeBtn}
+                      onClick={() => handleRemoveStaged(img.id)}
+                    />
+                  )}
+                </div>
+                <figcaption className={s.stagingCaption}>
+                  <span className={s.stagingLabel}>
                     {img.source_filename || img.original_filename}
                   </span>
                   {img.photo_taken_at && (
-                    <span style={styles.stagingDate}>
+                    <span className={s.stagingDate}>
                       {new Date(img.photo_taken_at).toLocaleDateString()}
                     </span>
                   )}
-                </div>
-              </div>
+                </figcaption>
+              </figure>
             ))}
           </div>
-
-          <button
-            data-testid="align-images-button"
-            style={{
-              ...styles.alignBtn,
-              ...(!canAlign ? styles.alignBtnDisabled : {}),
-            }}
-            onClick={handleAlign}
-            disabled={!canAlign}
-          >
-            {canAlign
-              ? "Align Images"
-              : duplicateCount > 0
-              ? "No new images to align"
-              : "Align Images"}
-          </button>
         </div>
       )}
 
       {/* Aligning progress */}
       {stage === "aligning" && (
-        <div data-testid="alignment-progress-container" style={styles.progressContainer}>
-          <div style={styles.progressBarOuter}>
-            <div
-              data-testid="alignment-progress-bar"
-              style={{
-                ...styles.progressBarInner,
-                width: `${progressPercent}%`,
-              }}
-            />
+        <div data-testid="alignment-progress-container" className={s.tray}>
+          <div className={s.progress}>
+            <p data-testid="alignment-progress" className={s.progressText}>
+              Aligning image {alignCurrent} of {alignTotal}...
+            </p>
+            <div className={s.progressTrack}>
+              <div
+                data-testid="alignment-progress-bar"
+                className={s.progressFill}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
           </div>
-          <p data-testid="alignment-progress" style={styles.progressText}>
-            Aligning image {alignCurrent} of {alignTotal}...
-          </p>
         </div>
       )}
 
       {/* Result summary */}
       {lastResult && stage === "idle" && (
-        <div data-testid="alignment-results" style={styles.results}>
-          <span data-testid="alignment-result-success" style={styles.resultSuccess}>
+        <div data-testid="alignment-results" className={s.results}>
+          <span data-testid="alignment-result-success" className={s.resultSuccess}>
+            <Icon name="check" size={14} />
             {succeededCount} aligned successfully
           </span>
           {failedCount > 0 && (
-            <span data-testid="alignment-result-failed" style={styles.resultFail}>
+            <span data-testid="alignment-result-failed" className={s.resultFail}>
+              <Icon name="alert" size={14} />
               {failedCount} face not detected
             </span>
           )}
@@ -463,14 +550,16 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       )}
 
       {error && stage === "idle" && (
-        <p data-testid="upload-error" style={styles.error}>{error}</p>
+        <p data-testid="upload-error" className={s.error}>
+          {error}
+        </p>
       )}
 
-      {/* Webcam Modal */}
+      {/* Webcam modal */}
       {isWebcamActive && (
         <div
           data-testid="webcam-modal"
-          style={styles.webcamModal}
+          className={s.modalBackdrop}
           onClick={(e) => {
             // Close on backdrop click
             if (e.target === e.currentTarget) {
@@ -478,53 +567,56 @@ export default function Upload({ onAlignComplete }: UploadProps) {
             }
           }}
         >
-          <div style={styles.webcamContainer}>
-            <div style={styles.webcamHeader}>
-              <h3 style={styles.webcamTitle}>Take a Photo</h3>
-              <button
+          <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="webcam-title">
+            <div className={s.modalHeader}>
+              <h3 id="webcam-title" className={s.modalTitle}>
+                Take a photo
+              </h3>
+              <IconButton
                 data-testid="webcam-close-button"
-                style={styles.webcamCloseButton}
+                icon="close"
+                label="Close"
                 onClick={stopWebcam}
-              >
-                ×
-              </button>
+              />
             </div>
             {webcamError ? (
-              <div style={styles.webcamError}>
+              <div className={s.webcamError}>
                 <p>{webcamError}</p>
-                <button style={styles.webcamButton} onClick={startWebcam}>
-                  Try Again
-                </button>
+                <Button onClick={startWebcam}>Try Again</Button>
               </div>
             ) : (
               <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  style={styles.webcamVideo}
-                  data-testid="webcam-video"
-                  onLoadedMetadata={() => {
-                    // Ensure video plays when metadata loads
-                    if (videoRef.current) {
-                      videoRef.current.play().catch((err) => {
-                        console.error("Video play error on metadata:", err);
-                      });
-                    }
-                  }}
-                  onError={(e) => {
-                    console.error("Video error:", e);
-                    setWebcamError("Video error occurred");
-                  }}
-                />
-                <div style={styles.webcamControls}>
+                <div className={s.videoFrame}>
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className={s.video}
+                    data-testid="webcam-video"
+                    onLoadedMetadata={() => {
+                      // Ensure video plays when metadata loads
+                      if (videoRef.current) {
+                        videoRef.current.play().catch((err) => {
+                          console.error("Video play error on metadata:", err);
+                        });
+                      }
+                    }}
+                    onError={(e) => {
+                      console.error("Video error:", e);
+                      setWebcamError("Video error occurred");
+                    }}
+                  />
+                </div>
+                <div className={s.modalControls}>
                   <button
                     data-testid="webcam-capture-button"
-                    style={styles.captureButton}
+                    className={s.shutter}
                     onClick={capturePhoto}
+                    aria-label="Capture"
+                    title="Capture"
                   >
-                    📸 Capture
+                    <span className={s.shutterInner} />
                   </button>
                 </div>
               </>
@@ -534,5 +626,6 @@ export default function Upload({ onAlignComplete }: UploadProps) {
       )}
     </div>
   );
-}
+});
 
+export default Upload;

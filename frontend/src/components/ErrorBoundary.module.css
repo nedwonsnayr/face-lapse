@@ -1,0 +1,22 @@
+.container {
+  margin-bottom: var(--space-6);
+  padding: var(--space-6) var(--space-5);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--danger-wash);
+  text-align: center;
+}
+
+.heading {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--danger);
+  margin-bottom: var(--space-2);
+}
+
+.message {
+  margin-bottom: var(--space-4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}

@@ -1,4 +1,6 @@
 import React from "react";
+import { Button } from "./ui/Button";
+import st from "./ErrorBoundary.module.css";
 
 interface Props {
   /** Label shown in the fallback UI (e.g. "Upload", "Image Library") */
@@ -26,48 +28,15 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div data-testid="error-boundary" style={styles.container}>
-          <p data-testid="error-boundary-heading" style={styles.heading}>Something went wrong in {this.props.section}</p>
-          <p data-testid="error-boundary-message" style={styles.message}>{this.state.error.message}</p>
-          <button data-testid="error-boundary-retry" style={styles.retry} onClick={this.handleRetry}>
+        <div data-testid="error-boundary" className={st.container}>
+          <p data-testid="error-boundary-heading" className={st.heading}>Something went wrong in {this.props.section}</p>
+          <p data-testid="error-boundary-message" className={st.message}>{this.state.error.message}</p>
+          <Button data-testid="error-boundary-retry" onClick={this.handleRetry}>
             Try Again
-          </button>
+          </Button>
         </div>
       );
     }
     return this.props.children;
   }
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: "32px 24px",
-    marginBottom: 32,
-    background: "var(--surface)",
-    border: "1px solid var(--danger)",
-    borderRadius: "var(--radius)",
-    textAlign: "center",
-  },
-  heading: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: "var(--danger)",
-    marginBottom: 8,
-  },
-  message: {
-    fontSize: 13,
-    color: "var(--text-muted)",
-    marginBottom: 16,
-    fontFamily: "monospace",
-  },
-  retry: {
-    padding: "8px 20px",
-    fontSize: 14,
-    fontWeight: 600,
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--border)",
-    background: "transparent",
-    color: "var(--text)",
-    cursor: "pointer",
-  },
-};

@@ -1,0 +1,111 @@
+/* Shared form controls: range, checkbox, text field, labels */
+
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+  --fill: 0%;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--ink) var(--fill), var(--hairline-strong) var(--fill));
+}
+.range::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--hairline-strong);
+}
+.range::-moz-range-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+  box-shadow: var(--shadow-print);
+  transition: transform var(--dur) var(--ease);
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--ink);
+}
+.range:hover::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.range:focus-visible {
+  box-shadow: none;
+}
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--focus-ring);
+}
+
+.checkRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkRow[data-disabled="true"] {
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+.checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ink);
+  cursor: inherit;
+}
+
+.field {
+  height: 34px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  transition: border-color var(--dur) var(--ease);
+}
+.field::placeholder {
+  color: var(--faint);
+}
+.field:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.field:focus-visible {
+  border-color: var(--ink);
+}
+.field:disabled {
+  color: var(--faint);
+  background: var(--paper);
+  cursor: not-allowed;
+}
+
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}

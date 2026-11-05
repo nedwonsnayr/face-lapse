@@ -23,7 +23,11 @@ import {
   deleteNoFaceImages,
   realignImage,
 } from "../api";
-import styles from "./ImageLibrary.styles";
+import { Button, IconButton } from "./ui/Button";
+import Icon from "./ui/Icon";
+import cx from "./ui/cx";
+import forms from "./ui/forms.module.css";
+import s from "./ImageLibrary.module.css";
 
 /* ── Props ─────────────────────────────────────────────── */
 
@@ -34,101 +38,133 @@ interface ImageLibraryProps {
   onDismissRecent: () => void;
 }
 
-/* ── Sortable card ─────────────────────────────────────── */
+/* ── Card ──────────────────────────────────────────── */
 
-interface SortableCardProps {
+const formatCardDate = (iso: string | null): string | null =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+interface CardActionsProps {
   img: ImageRecord;
   deletingId: number | null;
   realigningId: number | null;
   onDelete: (id: number) => void;
   onToggle: (id: number) => void;
   onRealign: (id: number) => void;
-  testIdPrefix?: string;
 }
 
-function SortableCard({ img, deletingId, realigningId, onDelete, onToggle, onRealign, testIdPrefix = "image-card" }: SortableCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: img.id });
+interface CardBodyProps extends CardActionsProps {
+  dragHandle?: React.ReactNode;
+}
 
-  const style: React.CSSProperties = {
-    ...styles.card,
-    ...(img.included_in_video ? {} : styles.cardExcluded),
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : undefined,
-    zIndex: isDragging ? 10 : undefined,
-  };
+/** Thumbnail, hover actions, date and include toggle. Shared by sortable and static grids. */
+function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, dragHandle }: CardBodyProps) {
+  const date = formatCardDate(img.photo_taken_at);
+  const isRealigning = realigningId === img.id;
+  const isDeleting = deletingId === img.id;
 
   return (
-    <div ref={setNodeRef} style={style} data-testid={`${testIdPrefix}-${img.id}`}>
-      {/* Drag handle */}
-      <div {...attributes} {...listeners} style={styles.dragHandle} title="Drag to reorder">
-        ⠿
-      </div>
-
-      {img.has_aligned ? (
-        <img
-          src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
-          alt={img.original_filename}
-          style={styles.thumbnail}
-          loading="lazy"
-        />
-      ) : (
-        <div style={styles.noFace}>
-          <span style={styles.noFaceIcon}>!</span>
-          <span style={styles.noFaceText}>No face</span>
-        </div>
-      )}
-
-      <div style={styles.cardInfo}>
-        <p style={styles.filename} title={img.original_filename}>
-          {img.original_filename}
-        </p>
-        {img.photo_taken_at && (
-          <p style={styles.date}>
-            {new Date(img.photo_taken_at).toLocaleDateString()}
-          </p>
+    <>
+      <div className={s.thumbWrap}>
+        {img.has_aligned ? (
+          <img
+            src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+            alt={date ? `Photo from ${date}` : img.original_filename}
+            className={s.thumbnail}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className={s.noFace}>
+            <Icon name="alert" size={20} />
+            <span>No face</span>
+          </div>
         )}
+
+        {dragHandle}
+
+        <div className={cx(s.hoverActions, (isRealigning || isDeleting) && s.hoverActionsBusy)}>
+          <IconButton
+            data-testid={`realign-button-${img.id}`}
+            icon="rotate"
+            label={isRealigning ? "Re-aligning…" : "Re-run face alignment"}
+            variant="overlay"
+            size="sm"
+            tone="accent"
+            className={cx(isRealigning && s.spinning)}
+            onClick={() => onRealign(img.id)}
+            disabled={isRealigning}
+          />
+          <IconButton
+            data-testid={`delete-button-${img.id}`}
+            icon="trash"
+            label={isDeleting ? "Deleting…" : "Delete photo"}
+            variant="overlay"
+            size="sm"
+            tone="danger"
+            onClick={() => onDelete(img.id)}
+            disabled={isDeleting}
+          />
+        </div>
       </div>
 
-      <div style={styles.cardActions}>
+      <div className={s.cardFooter}>
+        <span className={s.date} title={img.original_filename}>
+          {date ?? img.original_filename}
+        </span>
         {img.has_aligned && (
           <button
             data-testid={`toggle-include-button-${img.id}`}
-            style={{
-              ...styles.btnSmall,
-              ...(img.included_in_video ? styles.btnIncluded : styles.btnExcluded),
-            }}
+            className={cx(s.includeChip, img.included_in_video ? s.included : s.excluded)}
             onClick={() => onToggle(img.id)}
             title={img.included_in_video ? "Exclude from video" : "Include in video"}
+            aria-pressed={img.included_in_video}
           >
+            <Icon name={img.included_in_video ? "eye" : "eyeOff"} size={12} />
             {img.included_in_video ? "In" : "Out"}
           </button>
         )}
-        <button
-          data-testid={`realign-button-${img.id}`}
-          style={{ ...styles.btnSmall, ...styles.btnRealign }}
-          onClick={() => onRealign(img.id)}
-          disabled={realigningId === img.id}
-          title="Re-run face alignment"
-        >
-          {realigningId === img.id ? "..." : "⟳"}
-        </button>
-        <button
-          data-testid={`delete-button-${img.id}`}
-          style={{ ...styles.btnSmall, ...styles.btnDelete }}
-          onClick={() => onDelete(img.id)}
-          disabled={deletingId === img.id}
-        >
-          {deletingId === img.id ? "..." : "Del"}
-        </button>
       </div>
+    </>
+  );
+}
+
+interface SortableCardProps extends CardActionsProps {
+  testIdPrefix?: string;
+}
+
+function SortableCard({ testIdPrefix = "image-card", ...props }: SortableCardProps) {
+  const { img } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: img.id,
+  });
+
+  // Dynamic drag position stays inline; everything else is in CSS.
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cx(s.card, !img.included_in_video && s.cardExcluded, isDragging && s.cardDragging)}
+      data-testid={`${testIdPrefix}-${img.id}`}
+    >
+      <CardBody
+        {...props}
+        dragHandle={
+          <div {...attributes} {...listeners} className={s.dragHandle} title="Drag to reorder">
+            <Icon name="grip" size={14} />
+          </div>
+        }
+      />
     </div>
   );
 }
@@ -143,7 +179,7 @@ export default function ImageLibrary({
 }: ImageLibraryProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
-  const [previousCollapsed, setPreviousCollapsed] = useState(true);
+  const [previousCollapsed, setPreviousCollapsed] = useState(false);
   const [recentCollapsed, setRecentCollapsed] = useState(false);
   const [noFaceCollapsed, setNoFaceCollapsed] = useState(false);
   const [dismissingNoFace, setDismissingNoFace] = useState(false);
@@ -272,94 +308,38 @@ export default function ImageLibrary({
     }
   });
 
+  const cardProps = {
+    deletingId,
+    realigningId,
+    onDelete: handleDelete,
+    onToggle: handleToggle,
+    onRealign: handleRealign,
+  };
+
   const renderSortableGrid = (list: ImageRecord[], enableDrag: boolean = true, testIdPrefix: string = "image-card") => {
     if (!enableDrag) {
-      // Render non-sortable grid (no drag-and-drop)
+      // Non-sortable grid (search active: reordering a filtered subset would be ambiguous)
       return (
-        <div style={styles.grid}>
+        <div className={s.grid}>
           {list.map((img) => (
-            <div key={img.id} style={{ ...styles.card, ...(img.included_in_video ? {} : styles.cardExcluded) }} data-testid={`previous-image-card-${img.id}`}>
-              {img.has_aligned ? (
-                <img
-                  src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
-                  alt={img.original_filename}
-                  style={styles.thumbnail}
-                  loading="lazy"
-                />
-              ) : (
-                <div style={styles.noFace}>
-                  <span style={styles.noFaceIcon}>!</span>
-                  <span style={styles.noFaceText}>No face</span>
-                </div>
-              )}
-              <div style={styles.cardInfo}>
-                <p style={styles.filename} title={img.original_filename}>
-                  {img.original_filename}
-                </p>
-                {img.photo_taken_at && (
-                  <p style={styles.date}>
-                    {new Date(img.photo_taken_at).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-              <div style={styles.cardActions}>
-                {img.has_aligned && (
-                  <button
-                    data-testid={`toggle-include-button-${img.id}`}
-                    style={{
-                      ...styles.btnSmall,
-                      ...(img.included_in_video ? styles.btnIncluded : styles.btnExcluded),
-                    }}
-                    onClick={() => handleToggle(img.id)}
-                    title={img.included_in_video ? "Exclude from video" : "Include in video"}
-                  >
-                    {img.included_in_video ? "In" : "Out"}
-                  </button>
-                )}
-                <button
-                  data-testid={`realign-button-${img.id}`}
-                  style={{ ...styles.btnSmall, ...styles.btnRealign }}
-                  onClick={() => handleRealign(img.id)}
-                  disabled={realigningId === img.id}
-                  title="Re-run face alignment"
-                >
-                  {realigningId === img.id ? "..." : "⟳"}
-                </button>
-                <button
-                  data-testid={`delete-button-${img.id}`}
-                  style={{ ...styles.btnSmall, ...styles.btnDelete }}
-                  onClick={() => handleDelete(img.id)}
-                  disabled={deletingId === img.id}
-                >
-                  {deletingId === img.id ? "..." : "Del"}
-                </button>
-              </div>
+            <div
+              key={img.id}
+              className={cx(s.card, !img.included_in_video && s.cardExcluded)}
+              data-testid={`previous-image-card-${img.id}`}
+            >
+              <CardBody img={img} {...cardProps} />
             </div>
           ))}
         </div>
       );
     }
 
-    // Render sortable grid with drag-and-drop
     return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={(e) => handleDragEnd(e, list)}
-      >
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, list)}>
         <SortableContext items={list.map((img) => img.id)} strategy={rectSortingStrategy}>
-          <div style={styles.grid}>
+          <div className={s.grid}>
             {list.map((img) => (
-              <SortableCard
-                key={img.id}
-                img={img}
-                deletingId={deletingId}
-                realigningId={realigningId}
-                onDelete={handleDelete}
-                onToggle={handleToggle}
-                onRealign={handleRealign}
-                testIdPrefix={testIdPrefix}
-              />
+              <SortableCard key={img.id} img={img} {...cardProps} testIdPrefix={testIdPrefix} />
             ))}
           </div>
         </SortableContext>
@@ -367,25 +347,50 @@ export default function ImageLibrary({
     );
   };
 
+  const groupToggle = (
+    testId: string,
+    collapsed: boolean,
+    onClick: () => void,
+    label: React.ReactNode,
+    count: React.ReactNode,
+    tone?: "warning"
+  ) => (
+    <button
+      data-testid={testId}
+      className={cx(s.groupToggle, tone === "warning" && s.groupToggleWarning)}
+      onClick={onClick}
+      aria-expanded={!collapsed}
+    >
+      <Icon name="chevron" size={14} className={cx(s.chevron, collapsed && s.chevronCollapsed)} />
+      <span className={s.groupTitle}>{label}</span>
+      <span className={s.groupCount}>({count})</span>
+    </button>
+  );
+
   return (
-    <div style={styles.section}>
+    <div className={s.section}>
       {/* Overall header */}
-      <div style={styles.headerRow}>
-        <h2 style={styles.heading}>
-          Image Library{" "}
-          <span style={styles.count}>({images.length} images)</span>
+      <div className={s.headerRow}>
+        <h2 className={s.heading}>
+          Library <span className={s.count}>({images.length} images)</span>
         </h2>
-        <div style={styles.stats}>
-          <span style={styles.statAligned}>{alignedCount} aligned</span>
+        <div className={s.stats}>
+          <span className={s.statAligned}>
+            <span className={s.statDot} />
+            {alignedCount} aligned
+          </span>
           {failedCount > 0 && (
-            <span style={styles.statFailed}>{failedCount} no face</span>
+            <span className={s.statFailed}>
+              <span className={s.statDot} />
+              {failedCount} no face
+            </span>
           )}
         </div>
       </div>
 
       {images.length === 0 ? (
-        <div style={styles.empty}>
-          <p data-testid="empty-library-message" style={styles.emptyText}>
+        <div className={s.empty}>
+          <p data-testid="empty-library-message" className={s.emptyText}>
             No images yet. Upload some selfies to get started!
           </p>
         </div>
@@ -393,145 +398,121 @@ export default function ImageLibrary({
         <>
           {/* No Face Detected group */}
           {noFaceImages.length > 0 && (
-            <div data-testid="no-face-group" style={styles.noFaceGroup}>
-              <div style={styles.groupHeader}>
-                <button
-                  data-testid="no-face-collapse-button"
-                  style={styles.collapseBtn}
-                  onClick={() => setNoFaceCollapsed(!noFaceCollapsed)}
-                >
-                  <span
-                    style={{
-                      ...styles.arrow,
-                      transform: noFaceCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    }}
-                  >
-                    &#9660;
-                  </span>
-                  <span style={styles.noFaceLabel}>
-                    No Face Detected{" "}
-                    <span style={styles.groupCount}>({noFaceImages.length})</span>
-                  </span>
-                </button>
-                <button
+            <div data-testid="no-face-group" className={cx(s.group, s.noFaceGroup)}>
+              <div className={s.groupHeader}>
+                {groupToggle(
+                  "no-face-collapse-button",
+                  noFaceCollapsed,
+                  () => setNoFaceCollapsed(!noFaceCollapsed),
+                  "No face detected",
+                  noFaceImages.length,
+                  "warning"
+                )}
+                <Button
                   data-testid="dismiss-all-button"
-                  style={styles.dismissNoFaceBtn}
+                  size="sm"
+                  variant="danger"
+                  icon="trash"
                   onClick={handleDismissNoFace}
                   disabled={dismissingNoFace}
                 >
                   {dismissingNoFace ? "Deleting..." : "Dismiss All"}
-                </button>
+                </Button>
               </div>
               {!noFaceCollapsed && (
-                <div style={styles.scrollContainer}>
-                  <div style={styles.grid}>
+                <>
+                  <p className={s.groupHint}>
+                    These photos couldn't be aligned and won't appear in the timelapse.
+                  </p>
+                  <div className={s.grid}>
                     {noFaceImages.map((img) => (
-                      <div key={img.id} style={styles.noFaceCard} data-testid={`no-face-card-${img.id}`}>
-                        <img
-                          src={`${getOriginalImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
-                          alt={img.original_filename}
-                          style={styles.thumbnail}
-                          loading="lazy"
-                        />
-                        <div style={styles.cardInfo}>
-                          <p style={styles.filename} title={img.original_filename}>
+                      <div key={img.id} className={cx(s.card, s.noFaceCard)} data-testid={`no-face-card-${img.id}`}>
+                        <div className={s.thumbWrap}>
+                          <img
+                            src={`${getOriginalImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+                            alt={img.original_filename}
+                            className={s.thumbnail}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </div>
+                        <div className={s.cardFooter}>
+                          <span className={s.date} title={img.original_filename}>
                             {img.original_filename}
-                          </p>
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
 
           {/* Just Uploaded group */}
           {recentImages.length > 0 && (
-            <div data-testid="just-uploaded-group" style={styles.group}>
-              <div style={styles.groupHeader}>
-                <button
-                  data-testid="just-uploaded-collapse-button"
-                  style={styles.collapseBtn}
-                  onClick={() => setRecentCollapsed(!recentCollapsed)}
-                >
-                  <span
-                    style={{
-                      ...styles.arrow,
-                      transform: recentCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    }}
-                  >
-                    &#9660;
-                  </span>
-                  Just Uploaded{" "}
-                  <span style={styles.groupCount}>({recentImages.length})</span>
-                </button>
-                <button data-testid="dismiss-recent-button" style={styles.dismissBtn} onClick={onDismissRecent}>
+            <div data-testid="just-uploaded-group" className={s.group}>
+              <div className={s.groupHeader}>
+                {groupToggle(
+                  "just-uploaded-collapse-button",
+                  recentCollapsed,
+                  () => setRecentCollapsed(!recentCollapsed),
+                  "Just uploaded",
+                  recentImages.length
+                )}
+                <Button data-testid="dismiss-recent-button" size="sm" variant="ghost" onClick={onDismissRecent}>
                   Dismiss
-                </button>
+                </Button>
               </div>
-              {!recentCollapsed && (
-                <div style={styles.scrollContainer}>
-                  {renderSortableGrid(recentImages, true, "recent-image-card")}
-                </div>
-              )}
+              {!recentCollapsed && renderSortableGrid(recentImages, true, "recent-image-card")}
             </div>
           )}
 
           {/* Previously Processed group */}
           {previousImagesRaw.length > 0 && (
-            <div data-testid="previously-processed-group" style={styles.group}>
-              <div style={styles.groupHeader}>
-                <button
-                  data-testid="previously-processed-collapse-button"
-                  style={styles.collapseBtn}
-                  onClick={() => setPreviousCollapsed(!previousCollapsed)}
-                >
-                  <span
-                    style={{
-                      ...styles.arrow,
-                      transform: previousCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    }}
-                  >
-                    &#9660;
-                  </span>
-                  Previously Processed{" "}
-                  <span style={styles.groupCount}>
-                    ({previousImages.length === previousImagesRaw.length
-                      ? previousImages.length
-                      : `${previousImages.length} of ${previousImagesRaw.length}`})
-                  </span>
-                </button>
+            <div data-testid="previously-processed-group" className={s.group}>
+              <div className={s.groupHeader}>
+                {groupToggle(
+                  "previously-processed-collapse-button",
+                  previousCollapsed,
+                  () => setPreviousCollapsed(!previousCollapsed),
+                  recentImages.length > 0 ? "Previously processed" : "All photos",
+                  previousImages.length === previousImagesRaw.length
+                    ? previousImages.length
+                    : `${previousImages.length} of ${previousImagesRaw.length}`
+                )}
               </div>
               {!previousCollapsed && (
                 <>
-                  <div style={styles.previousControls}>
-                    <input
-                      data-testid="library-search-input"
-                      type="text"
-                      placeholder="Search by filename or date..."
-                      value={librarySearch}
-                      onChange={(e) => setLibrarySearch(e.target.value)}
-                      style={styles.searchInput}
-                    />
-                    <button
+                  <div className={s.toolbar}>
+                    <label className={s.search}>
+                      <Icon name="search" size={15} className={s.searchIcon} />
+                      <input
+                        data-testid="library-search-input"
+                        type="search"
+                        placeholder="Search by filename or date…"
+                        aria-label="Search photos"
+                        value={librarySearch}
+                        onChange={(e) => setLibrarySearch(e.target.value)}
+                        className={cx(forms.field, s.searchInput)}
+                      />
+                    </label>
+                    <Button
                       data-testid="library-sort-button"
-                      style={styles.sortButton}
+                      icon={sortAscending ? "sortAsc" : "sortDesc"}
                       onClick={() => setSortAscending(!sortAscending)}
                       title={sortAscending ? "Sort descending" : "Sort ascending"}
                     >
-                      {sortAscending ? "↑" : "↓"} Sort
-                    </button>
+                      {sortAscending ? "Oldest first" : "Newest first"}
+                    </Button>
                   </div>
-                  <div style={styles.scrollContainer}>
-                    {previousImages.length > 0 ? (
-                      renderSortableGrid(previousImages, !librarySearch, "previous-image-card")
-                    ) : (
-                      <div data-testid="previous-no-results" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
-                        No images match your filters
-                      </div>
-                    )}
-                  </div>
+                  {previousImages.length > 0 ? (
+                    renderSortableGrid(previousImages, !librarySearch, "previous-image-card")
+                  ) : (
+                    <div data-testid="previous-no-results" className={s.noResults}>
+                      No images match your filters
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -541,4 +522,3 @@ export default function ImageLibrary({
     </div>
   );
 }
-

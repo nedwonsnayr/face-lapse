@@ -1,0 +1,3 @@
+# DBA — index
+- [DISCOVERED] SQLite via `backend/app/database.py`, with SQL migrations in `migrations/`.
+- ui-revamp: no schema or query changes.
