@@ -7,6 +7,9 @@ import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
 import s from "./Timelapse.module.css";
 
+// Frames to load ahead of the playhead.
+const PRELOAD_AHEAD = 8;
+
 interface TimelapseProps {
   /** Included+aligned images, in display order */
   images: ImageRecord[];
@@ -43,6 +46,24 @@ export default function Timelapse({ images }: TimelapseProps) {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [frameDuration, isPlaying, images.length]);
+
+  // Warm the browser cache with the next few frames so playback doesn't stall
+  // waiting on the network. Keeps references until the next index change.
+  useEffect(() => {
+    if (images.length === 0) return;
+    const start = Math.min(currentIndex, images.length - 1);
+    const ahead: HTMLImageElement[] = [];
+    for (let i = 1; i <= PRELOAD_AHEAD && i < images.length; i++) {
+      const img = images[(start + i) % images.length];
+      const el = new Image();
+      el.decoding = "async";
+      el.src = getAlignedImageUrl(img.id, img.content_hash, "frame");
+      ahead.push(el);
+    }
+    return () => {
+      ahead.length = 0;
+    };
+  }, [currentIndex, images]);
 
   // Reset index if images change or if currentIndex is out of bounds
   useEffect(() => {
@@ -197,7 +218,7 @@ export default function Timelapse({ images }: TimelapseProps) {
           {currentImage && (
             <img
               data-testid="timelapse-frame"
-              src={getAlignedImageUrl(currentImage.id, currentImage.content_hash)}
+              src={getAlignedImageUrl(currentImage.id, currentImage.content_hash, "frame")}
               alt={`Frame ${safeIndex + 1}`}
               className={s.frame}
             />

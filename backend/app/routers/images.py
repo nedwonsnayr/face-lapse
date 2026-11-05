@@ -11,7 +11,7 @@ from typing import Generator, List
 
 log = logging.getLogger("face-lapse.images")
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,6 +21,7 @@ from ..models import Image
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
 from ..services.alignment import align_image, extract_exif_date, parse_date_from_filename
 from ..utils.date_interpolation import interpolate_and_store_dates
+from ..services import resize
 
 router = APIRouter()
 
@@ -491,6 +492,7 @@ def delete_no_face_images(db: Session = Depends(get_db)):
                 p = Path(path_str)
                 if p.exists():
                     p.unlink()
+        resize.purge(img.id)
         db.delete(img)
         deleted_count += 1
     db.commit()
@@ -498,33 +500,42 @@ def delete_no_face_images(db: Session = Depends(get_db)):
     return {"deleted": deleted_count}
 
 
+_SIZE_QUERY = Query(
+    default="full",
+    pattern="^(full|thumb|frame)$",
+    description="full = stored file; thumb (≤300×400) and frame (≤600×800) are cached JPEG copies",
+)
+_IMAGE_CACHE = {"Cache-Control": "private, max-age=31536000, immutable"}
+
+
+def _serve(image: Image, source: Path, size: str, media_type: str | None = None) -> FileResponse:
+    if size == "full":
+        return FileResponse(source, media_type=media_type, headers=_IMAGE_CACHE)
+    path = resize.resized_path(source, image.id, _content_version(image), size)
+    return FileResponse(path, media_type="image/jpeg", headers=_IMAGE_CACHE)
+
+
 @router.get("/{image_id}/aligned")
-def get_aligned_image(image_id: int, db: Session = Depends(get_db)):
-    """Serve the aligned version of an image."""
+def get_aligned_image(image_id: int, size: str = _SIZE_QUERY, db: Session = Depends(get_db)):
+    """Serve the aligned version of an image (optionally a smaller cached copy)."""
     image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     if not image.aligned_path or not Path(image.aligned_path).exists():
         raise HTTPException(status_code=404, detail="Aligned image not available")
-    return FileResponse(
-        image.aligned_path,
-        media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
-    )
+    return _serve(image, Path(image.aligned_path), size, media_type="image/jpeg")
 
 
 @router.get("/{image_id}/original")
-def get_original_image(image_id: int, db: Session = Depends(get_db)):
-    """Serve the original version of an image."""
+def get_original_image(image_id: int, size: str = _SIZE_QUERY, db: Session = Depends(get_db)):
+    """Serve the original upload (optionally a smaller cached JPEG copy — also
+    makes HEIC originals viewable in browsers that can't display HEIC)."""
     image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     if not Path(image.original_path).exists():
         raise HTTPException(status_code=404, detail="Original image not found")
-    return FileResponse(
-        image.original_path,
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
-    )
+    return _serve(image, Path(image.original_path), size)
 
 
 @router.delete("/{image_id}")
@@ -541,6 +552,7 @@ def delete_image(image_id: int, db: Session = Depends(get_db)):
             if p.exists():
                 p.unlink()
 
+    resize.purge(image_id)
     db.delete(image)
     db.commit()
     log.info("Deleted image %d (%s)", image_id, image.original_filename)
@@ -571,6 +583,7 @@ def realign_image(image_id: int, db: Session = Depends(get_db)):
     stem = Path(image.original_filename).stem
     aligned_path = ALIGNED_DIR / f"{stem}.jpg"
     result = align_image(str(image.original_path), str(aligned_path))
+    resize.purge(image_id)  # the aligned file was rewritten
 
     image.aligned_path = str(aligned_path) if result.success else None
     image.left_eye_x = result.left_eye[0] if result.left_eye else None

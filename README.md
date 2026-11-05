@@ -64,6 +64,7 @@ All data is stored in the `data/` directory (git-ignored):
 | `data/originals/` | Uploaded images named as sequential integers |
 | `data/aligned/` | Face-aligned images (matching integer names) |
 | `data/videos/` | Generated timelapse MP4s |
+| `data/thumbs/` | Resized copies for the UI (made on demand; safe to delete) |
 | `data/face_lapse.db` | SQLite database |
 
 ## How It Works

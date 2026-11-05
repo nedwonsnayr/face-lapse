@@ -10,6 +10,7 @@ DATA_DIR = Path(os.environ["FACE_LAPSE_DATA_DIR"]) if "FACE_LAPSE_DATA_DIR" in o
 ORIGINALS_DIR = DATA_DIR / "originals"
 ALIGNED_DIR = DATA_DIR / "aligned"
 VIDEOS_DIR = DATA_DIR / "videos"
+THUMBS_DIR = DATA_DIR / "thumbs"  # resized copies for the UI; safe to delete
 
 # Production: built SPA served by FastAPI when set (e.g. /app/frontend/dist)
 STATIC_DIR = Path(os.environ["FACE_LAPSE_STATIC_DIR"]) if os.environ.get("FACE_LAPSE_STATIC_DIR") else None
@@ -35,7 +36,7 @@ DEFAULT_FRAME_DURATION = 0.1  # seconds per frame
 
 def ensure_directories() -> None:
     """Create data directories if they don't exist."""
-    for d in [DATA_DIR, ORIGINALS_DIR, ALIGNED_DIR, VIDEOS_DIR]:
+    for d in [DATA_DIR, ORIGINALS_DIR, ALIGNED_DIR, VIDEOS_DIR, THUMBS_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
