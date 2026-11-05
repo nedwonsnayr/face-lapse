@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db, SessionLocal, Base, engine
 from ..models import Image
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
+from ..services.ordering import library_order
 from ..services.alignment import align_image, extract_exif_date, parse_date_from_filename
 from ..utils.date_interpolation import interpolate_and_store_dates
 from ..services import resize
@@ -391,21 +392,6 @@ def align_images(body: AlignRequest):
     )
 
 
-def _sort_images(images: list) -> list:
-    """
-    Sort images by: manual sort_order first (nulls last), then by numeric
-    filename (treating stems as integers), then by photo date, then created_at.
-    """
-    def key(img):
-        sort_order = img.sort_order if img.sort_order is not None else float("inf")
-        num_key = numeric_filename_key(img.original_filename)
-        photo_ts = img.photo_taken_at or datetime.max
-        created_ts = img.created_at or datetime.max
-        return (sort_order, num_key, photo_ts, created_ts)
-
-    return sorted(images, key=key)
-
-
 def _content_version(img: Image) -> str:
     """Cache key for an image's URLs. IDs can be reused after a delete (SQLite
     reuses the highest rowid), so the URL must also change with the content."""
@@ -414,9 +400,9 @@ def _content_version(img: Image) -> str:
 
 @router.get("")
 def list_images(request: Request, db: Session = Depends(get_db)):
-    """List all images sorted by: manual sort_order, then numeric filename, then date."""
+    """List all images in library order (see services/ordering.py)."""
     images = db.query(Image).all()
-    images = _sort_images(images)
+    images = library_order(images)
     payload = [
         {
             "id": img.id,

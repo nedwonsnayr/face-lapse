@@ -166,7 +166,7 @@ def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None)
     Images are sorted chronologically before interpolation.
     Returns the number of images updated.
     """
-    from ..routers.images import _sort_images
+    from ..services.ordering import library_order
     
     # Get images to process
     if image_ids:
@@ -179,7 +179,7 @@ def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None)
     
     # Get all images sorted chronologically (needed for interpolation context)
     all_images = db.query(Image).all()
-    all_images_sorted = _sort_images(all_images)
+    all_images_sorted = library_order(all_images)
     
     # Build mapping of image ID to index in sorted list
     id_to_index = {img.id: idx for idx, img in enumerate(all_images_sorted)}

@@ -17,6 +17,7 @@ from ..database import get_db
 from ..models import Image
 from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION, numeric_filename_key
 from ..services.video import generate_video
+from ..services.ordering import library_order
 
 router = APIRouter()
 
@@ -96,15 +97,8 @@ def generate_timelapse(
         .all()
     )
 
-    # Sort using numeric filename sort (consistent with the images list endpoint)
-    def _sort_key(img):
-        sort_order = img.sort_order if img.sort_order is not None else float("inf")
-        num_key = numeric_filename_key(img.original_filename)
-        photo_ts = img.photo_taken_at or datetime.max
-        created_ts = img.created_at or datetime.max
-        return (sort_order, num_key, photo_ts, created_ts)
-
-    images = sorted(images, key=_sort_key)
+    # Same order as the library and the in-app player.
+    images = library_order(images)
 
     if not images:
         raise HTTPException(

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Upload, { UploadHandle } from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
 import Timelapse from "./components/Timelapse";
@@ -120,8 +120,13 @@ export default function App() {
 
   // Uploads waiting to be aligned (possibly staged on another device) belong to
   // the upload tray, not the library.
-  const libraryImages = images.filter((img) => !img.pending);
-  const includedImages = libraryImages.filter((img) => img.included_in_video && img.has_aligned);
+  const libraryImages = useMemo(() => images.filter((img) => !img.pending), [images]);
+  // Library order (date taken, adjusted by drags) as the server sends it. The
+  // library's "Newest first" only flips its own view, never the timelapse.
+  const includedImages = useMemo(
+    () => libraryImages.filter((img) => img.included_in_video && img.has_aligned),
+    [libraryImages]
+  );
   const range = yearRange(libraryImages);
 
   return (
