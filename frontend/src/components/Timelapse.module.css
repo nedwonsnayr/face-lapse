@@ -91,6 +91,22 @@
   gap: var(--space-4);
 }
 
+.stepGroup {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* Visually hidden, still in textContent */
+.glyph {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ── Settings panel ───────────────────────────────── */
 
 .panel {

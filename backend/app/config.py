@@ -14,10 +14,10 @@ VIDEOS_DIR = DATA_DIR / "videos"
 # Database
 DATABASE_URL = f"sqlite:///{DATA_DIR / 'face_lapse.db'}"
 
-# Alignment settings
-OUTPUT_WIDTH = 600
-OUTPUT_HEIGHT = 800
-TARGET_EYE_DISTANCE = 120  # pixels between eye centers in aligned output
+# Alignment settings (also define the generated video resolution)
+OUTPUT_WIDTH = 1200
+OUTPUT_HEIGHT = 1600
+TARGET_EYE_DISTANCE = 240  # pixels between eye centers in aligned output
 # Eye center target position (x, y) in the output image
 TARGET_LEFT_EYE = (OUTPUT_WIDTH // 2 - TARGET_EYE_DISTANCE // 2, int(OUTPUT_HEIGHT * 0.38))
 TARGET_RIGHT_EYE = (OUTPUT_WIDTH // 2 + TARGET_EYE_DISTANCE // 2, int(OUTPUT_HEIGHT * 0.38))

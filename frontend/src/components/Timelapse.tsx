@@ -57,6 +57,52 @@ export default function Timelapse({ images }: TimelapseProps) {
     setIsPlaying((p) => !p);
   }, []);
 
+  const stepBackward = useCallback(() => {
+    setCurrentIndex((prev) => Math.max(0, prev - 1));
+  }, []);
+
+  const stepForward = useCallback(() => {
+    setCurrentIndex((prev) => Math.min(images.length - 1, prev + 1));
+  }, [images.length]);
+
+  useEffect(() => {
+    if (images.length === 0) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isPlaying) return;
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+      const target = event.target as HTMLElement;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+
+      const index = Math.min(currentIndex, Math.max(0, images.length - 1));
+
+      if (event.key === "ArrowLeft" && index > 0) {
+        event.preventDefault();
+        stepBackward();
+      } else if (event.key === "ArrowRight" && index < images.length - 1) {
+        event.preventDefault();
+        stepForward();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isPlaying,
+    currentIndex,
+    images.length,
+    stepBackward,
+    stepForward,
+  ]);
+
   const handleDownload = useCallback(async () => {
     setIsGenerating(true);
     setError(null);
@@ -88,7 +134,7 @@ export default function Timelapse({ images }: TimelapseProps) {
     return (
       <div className={s.section}>
         <div className={s.header}>
-          <p className={forms.eyebrow}>Timelapse</p>
+          <h2 className={forms.eyebrow}>Timelapse</h2>
         </div>
         <div className={s.emptyMat}>
           <p data-testid="empty-timelapse-message" className={s.emptyText}>
@@ -130,6 +176,8 @@ export default function Timelapse({ images }: TimelapseProps) {
       })
     : null;
   const currentAge = showAge ? calculateAge(currentImage?.photo_taken_at || null) : null;
+  const canStepBackward = !isPlaying && safeIndex > 0;
+  const canStepForward = !isPlaying && safeIndex < images.length - 1;
 
   const scrubFill = images.length > 1 ? (safeIndex / (images.length - 1)) * 100 : 0;
   const totalSeconds = images.length * frameDuration;
@@ -137,7 +185,7 @@ export default function Timelapse({ images }: TimelapseProps) {
   return (
     <div className={s.section}>
       <div className={s.header}>
-        <p className={forms.eyebrow}>Timelapse</p>
+        <h2 className={forms.eyebrow}>Timelapse</h2>
         <span data-testid="frame-counter" className={s.counter}>
           {safeIndex + 1} / {images.length}
         </span>
@@ -178,7 +226,12 @@ export default function Timelapse({ images }: TimelapseProps) {
           variant="solid"
           size="lg"
           onClick={togglePlay}
-        />
+        >
+          {/* Glyph kept in the DOM (visually hidden) as the button's stable text contract */}
+          <span className={s.glyph} aria-hidden="true">
+            {isPlaying ? "⏸" : "▶"}
+          </span>
+        </IconButton>
         <input
           data-testid="timelapse-scrubber"
           type="range"
@@ -194,6 +247,24 @@ export default function Timelapse({ images }: TimelapseProps) {
           className={forms.range}
           style={{ "--fill": `${scrubFill}%` } as React.CSSProperties}
         />
+        <div className={s.stepGroup}>
+          <IconButton
+            data-testid="step-backward-button"
+            icon="chevronLeft"
+            label="Previous frame"
+            size="sm"
+            onClick={stepBackward}
+            disabled={!canStepBackward}
+          />
+          <IconButton
+            data-testid="step-forward-button"
+            icon="chevronRight"
+            label="Next frame"
+            size="sm"
+            onClick={stepForward}
+            disabled={!canStepForward}
+          />
+        </div>
       </div>
 
       {/* Settings */}
