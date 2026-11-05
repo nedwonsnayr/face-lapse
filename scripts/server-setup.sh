@@ -56,6 +56,7 @@ sudo chown -R 1000:1000 ~/face-lapse/data
 
 echo "==> Nightly backup at 03:17 server time"
 CRON_LINE="17 3 * * * $HOME/face-lapse/scripts/backup.sh >> /var/log/face-lapse-backup.log 2>&1"
-( sudo crontab -l 2>/dev/null | grep -v face-lapse/scripts/backup.sh; echo "$CRON_LINE" ) | sudo crontab -
+# `|| true`: with no crontab yet, `crontab -l` and `grep -v` exit non-zero under pipefail.
+{ sudo crontab -l 2>/dev/null | grep -v face-lapse/scripts/backup.sh || true; echo "$CRON_LINE"; } | sudo crontab -
 
 echo "Done. Log out and back in so the docker group applies."
