@@ -63,6 +63,15 @@ const paths = {
     </>
   ),
   chevron: <path d="M6 9l6 6 6-6" />,
+  grid: (
+    <>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1" />
+    </>
+  ),
+  list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
   chevronLeft: <path d="M15 6l-6 6 6 6" />,
   chevronRight: <path d="M9 6l6 6-6 6" />,
   search: (

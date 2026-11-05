@@ -11,6 +11,7 @@ import {
   SortableContext,
   useSortable,
   rectSortingStrategy,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -41,6 +42,27 @@ interface ImageLibraryProps {
 }
 
 /* ── Card ──────────────────────────────────────────── */
+
+const formatRowDate = (iso: string | null): string | null =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+export type LibraryView = "grid" | "list";
+const VIEW_STORAGE_KEY = "face-lapse:library-view";
+
+function loadView(): LibraryView {
+  try {
+    return localStorage.getItem(VIEW_STORAGE_KEY) === "list" ? "list" : "grid";
+  } catch {
+    return "grid";
+  }
+}
 
 const formatCardDate = (iso: string | null): string | null =>
   iso
@@ -91,27 +113,7 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
         {dragHandle}
 
         <div className={cx(s.hoverActions, (isRealigning || isDeleting) && s.hoverActionsBusy)}>
-          <IconButton
-            data-testid={`realign-button-${img.id}`}
-            icon="rotate"
-            label={isRealigning ? "Re-aligning…" : "Re-run face alignment"}
-            variant="overlay"
-            size="sm"
-            tone="accent"
-            className={cx(isRealigning && s.spinning)}
-            onClick={() => onRealign(img.id)}
-            disabled={isRealigning}
-          />
-          <IconButton
-            data-testid={`delete-button-${img.id}`}
-            icon="trash"
-            label={isDeleting ? "Deleting…" : "Delete photo"}
-            variant="overlay"
-            size="sm"
-            tone="danger"
-            onClick={() => onDelete(img.id)}
-            disabled={isDeleting}
-          />
+          <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign }} variant="overlay" />
         </div>
       </div>
 
@@ -119,18 +121,94 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
         <span className={s.date} title={img.original_filename}>
           {date ?? img.original_filename}
         </span>
-        {img.has_aligned && (
-          <button
-            data-testid={`toggle-include-button-${img.id}`}
-            className={cx(s.includeChip, img.included_in_video ? s.included : s.excluded)}
-            onClick={() => onToggle(img.id)}
-            title={img.included_in_video ? "Exclude from video" : "Include in video"}
-            aria-pressed={img.included_in_video}
-          >
-            <Icon name={img.included_in_video ? "eye" : "eyeOff"} size={12} />
-            {img.included_in_video ? "In" : "Out"}
-          </button>
+        {img.has_aligned && <IncludeChip img={img} onToggle={onToggle} />}
+      </div>
+    </>
+  );
+}
+
+/** Re-align + delete buttons, shared by grid cards (on hover) and list rows (always shown). */
+function PhotoActions({
+  img,
+  deletingId,
+  realigningId,
+  onDelete,
+  onRealign,
+  variant,
+}: Pick<CardActionsProps, "img" | "deletingId" | "realigningId" | "onDelete" | "onRealign"> & {
+  variant: "overlay" | "plain";
+}) {
+  const isRealigning = realigningId === img.id;
+  const isDeleting = deletingId === img.id;
+  return (
+    <>
+      <IconButton
+        data-testid={`realign-button-${img.id}`}
+        icon="rotate"
+        label={isRealigning ? "Re-aligning…" : "Re-run face alignment"}
+        variant={variant}
+        size="sm"
+        tone="accent"
+        className={cx(isRealigning && s.spinning)}
+        onClick={() => onRealign(img.id)}
+        disabled={isRealigning}
+      />
+      <IconButton
+        data-testid={`delete-button-${img.id}`}
+        icon="trash"
+        label={isDeleting ? "Deleting…" : "Delete photo"}
+        variant={variant}
+        size="sm"
+        tone="danger"
+        onClick={() => onDelete(img.id)}
+        disabled={isDeleting}
+      />
+    </>
+  );
+}
+
+function IncludeChip({ img, onToggle }: { img: ImageRecord; onToggle: (id: number) => void }) {
+  return (
+    <button
+      data-testid={`toggle-include-button-${img.id}`}
+      className={cx(s.includeChip, img.included_in_video ? s.included : s.excluded)}
+      onClick={() => onToggle(img.id)}
+      title={img.included_in_video ? "Exclude from video" : "Include in video"}
+      aria-pressed={img.included_in_video}
+    >
+      <Icon name={img.included_in_video ? "eye" : "eyeOff"} size={12} />
+      {img.included_in_video ? "In" : "Out"}
+    </button>
+  );
+}
+
+/** One row in list view: thumbnail, full date, source filename, and always-visible controls. */
+function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, dragHandle }: CardBodyProps) {
+  const date = formatRowDate(img.photo_taken_at);
+  return (
+    <>
+      {dragHandle}
+      <div className={s.rowThumb}>
+        {img.has_aligned ? (
+          <img
+            src={getAlignedImageUrl(img.id, img.content_hash, "thumb")}
+            alt={date ? `Photo from ${date}` : img.original_filename}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <Icon name="alert" size={16} />
         )}
+      </div>
+      <div className={s.rowMeta}>
+        <span className={s.rowDate}>{date ?? img.original_filename}</span>
+        <span className={s.rowFile} title={img.original_filename}>
+          {img.source_filename || img.original_filename}
+        </span>
+      </div>
+      {img.has_aligned && <IncludeChip img={img} onToggle={onToggle} />}
+      <div className={s.rowActions}>
+        <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign }} variant="plain" />
       </div>
     </>
   );
@@ -138,9 +216,10 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
 
 interface SortableCardProps extends CardActionsProps {
   testIdPrefix?: string;
+  layout: LibraryView;
 }
 
-function SortableCard({ testIdPrefix = "image-card", ...props }: SortableCardProps) {
+function SortableCard({ testIdPrefix = "image-card", layout, ...props }: SortableCardProps) {
   const { img } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: img.id,
@@ -152,21 +231,26 @@ function SortableCard({ testIdPrefix = "image-card", ...props }: SortableCardPro
     transition,
   };
 
+  const isList = layout === "list";
+  const handle = (
+    <div {...attributes} {...listeners} className={isList ? s.rowDragHandle : s.dragHandle} title="Drag to reorder">
+      <Icon name="grip" size={14} />
+    </div>
+  );
+  const Body = isList ? RowBody : CardBody;
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={cx(s.card, !img.included_in_video && s.cardExcluded, isDragging && s.cardDragging)}
+      className={cx(
+        isList ? s.row : s.card,
+        !img.included_in_video && (isList ? s.rowExcluded : s.cardExcluded),
+        isDragging && s.cardDragging
+      )}
       data-testid={`${testIdPrefix}-${img.id}`}
     >
-      <CardBody
-        {...props}
-        dragHandle={
-          <div {...attributes} {...listeners} className={s.dragHandle} title="Drag to reorder">
-            <Icon name="grip" size={14} />
-          </div>
-        }
-      />
+      <Body {...props} dragHandle={handle} />
     </div>
   );
 }
@@ -188,6 +272,15 @@ export default function ImageLibrary({
   const [dismissingNoFace, setDismissingNoFace] = useState(false);
   const [librarySearch, setLibrarySearch] = useState("");
   const [sortAscending, setSortAscending] = useState(true);
+  const [view, setViewState] = useState<LibraryView>(loadView);
+  const setView = (next: LibraryView) => {
+    setViewState(next);
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      /* private mode etc.: the choice just isn't remembered */
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -324,15 +417,20 @@ export default function ImageLibrary({
   const renderSortableGrid = (list: ImageRecord[], enableDrag: boolean = true, testIdPrefix: string = "image-card") => {
     if (!enableDrag) {
       // Non-sortable grid (search active: reordering a filtered subset would be ambiguous)
+      const isList = view === "list";
+      const Body = isList ? RowBody : CardBody;
       return (
-        <div className={s.grid}>
+        <div className={isList ? s.list : s.grid}>
           {list.map((img) => (
             <div
               key={img.id}
-              className={cx(s.card, !img.included_in_video && s.cardExcluded)}
+              className={cx(
+                isList ? s.row : s.card,
+                !img.included_in_video && (isList ? s.rowExcluded : s.cardExcluded)
+              )}
               data-testid={`previous-image-card-${img.id}`}
             >
-              <CardBody img={img} {...cardProps} />
+              <Body img={img} {...cardProps} />
             </div>
           ))}
         </div>
@@ -350,10 +448,13 @@ export default function ImageLibrary({
           handleDragEnd(e, list);
         }}
       >
-        <SortableContext items={list.map((img) => img.id)} strategy={rectSortingStrategy}>
-          <div className={s.grid}>
+        <SortableContext
+          items={list.map((img) => img.id)}
+          strategy={view === "list" ? verticalListSortingStrategy : rectSortingStrategy}
+        >
+          <div className={view === "list" ? s.list : s.grid} data-testid="library-items" data-view={view}>
             {list.map((img) => (
-              <SortableCard key={img.id} img={img} {...cardProps} testIdPrefix={testIdPrefix} />
+              <SortableCard key={img.id} img={img} {...cardProps} testIdPrefix={testIdPrefix} layout={view} />
             ))}
           </div>
         </SortableContext>
@@ -519,6 +620,20 @@ export default function ImageLibrary({
                     >
                       {sortAscending ? "Oldest first" : "Newest first"}
                     </Button>
+                    <div className={s.viewToggle} role="group" aria-label="Library view">
+                      {(["grid", "list"] as const).map((v) => (
+                        <IconButton
+                          key={v}
+                          data-testid={`library-view-${v}`}
+                          icon={v}
+                          label={v === "grid" ? "Grid view" : "List view"}
+                          size="sm"
+                          aria-pressed={view === v}
+                          className={cx(s.viewToggleBtn, view === v && s.viewToggleActive)}
+                          onClick={() => setView(v)}
+                        />
+                      ))}
+                    </div>
                   </div>
                   {previousImages.length > 0 ? (
                     renderSortableGrid(previousImages, !librarySearch, "previous-image-card")
