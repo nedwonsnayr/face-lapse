@@ -244,6 +244,31 @@ export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
   return res.json();
 }
 
+interface VideoJob extends Omit<GenerateResponse, "success" | "video_filename"> {
+  job_id: string;
+  status: "running" | "done" | "error";
+  video_filename: string | null;
+  error: string | null;
+}
+
+const VIDEO_POLL_MS = 2000;
+const VIDEO_TIMEOUT_MS = 15 * 60 * 1000;
+
+async function readError(res: Response, fallback: string): Promise<Error> {
+  const data = await res.json().catch(() => ({}));
+  const errorMsg: string = data.detail || fallback;
+  // Provide more helpful error message if FFmpeg is not found
+  if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
+    return new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
+  }
+  return new Error(errorMsg);
+}
+
+/**
+ * Start video generation and wait for it to finish.
+ * The server runs it as a background job (it can take minutes, longer than
+ * Cloudflare's proxy timeout), so we poll until it's done.
+ */
 export async function generateVideo(
   frameDuration: number,
   showDates: boolean = false,
@@ -262,16 +287,27 @@ export async function generateVideo(
     `${API_BASE}/video/generate?${params.toString()}`,
     { method: "POST" }
   );
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    const errorMsg = data.detail || "Video generation failed";
-    // Provide more helpful error message if FFmpeg is not found
-    if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
-      throw new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
-    }
-    throw new Error(errorMsg);
+  if (!res.ok) throw await readError(res, "Video generation failed");
+  let job: VideoJob = await res.json();
+
+  const deadline = Date.now() + VIDEO_TIMEOUT_MS;
+  while (job.status === "running") {
+    if (Date.now() > deadline) throw new Error("Video generation timed out");
+    await new Promise((r) => setTimeout(r, VIDEO_POLL_MS));
+    const poll = await fetch(`${API_BASE}/video/jobs/${job.job_id}`);
+    if (!poll.ok) throw await readError(poll, "Lost track of video generation");
+    job = await poll.json();
   }
-  return res.json();
+  if (job.status === "error" || !job.video_filename) {
+    throw new Error(job.error || "Video generation failed");
+  }
+  return {
+    success: true,
+    frame_count: job.frame_count,
+    frame_duration: job.frame_duration,
+    total_duration: job.total_duration,
+    video_filename: job.video_filename,
+  };
 }
 
 export function getAlignedImageUrl(id: number): string {
