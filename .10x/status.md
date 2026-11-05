@@ -1,6 +1,6 @@
 # Status
 **Feature:** cloud-hosting (branch `cloud-hosting`, cut from `ui-revamp`; not pushed)
-**Phase:** Delivery: live at https://facelapse.ryanmsnowden.com, pending the owner's in-browser check
+**Phase:** cloud-hosting delivered; library-sync in PR
 
 | # | Task | State |
 |---|---|---|
@@ -19,3 +19,6 @@ Open:
 - The owner verifies browse, upload and download through the site.
 - Push/merge `ui-revamp` + `cloud-hosting` to main, then set up the GH deploy secrets (docs/hosting.md §3).
 - Optional: reserve a static public IP in Oracle (ephemeral IPs change on stop/start).
+
+## library-sync (2026-11-05)
+Auto-refresh, new photos shown in both groups, staged uploads hidden and safe from Dismiss All, content-hash image URLs. e2e 32/32. In a PR.

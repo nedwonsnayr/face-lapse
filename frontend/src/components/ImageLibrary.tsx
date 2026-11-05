@@ -36,6 +36,8 @@ interface ImageLibraryProps {
   recentUploadIds: Set<number>;
   onRefresh: () => void;
   onDismissRecent: () => void;
+  /** Told when a drag-to-reorder starts/ends, so background refreshes can wait. */
+  onDraggingChange?: (dragging: boolean) => void;
 }
 
 /* ── Card ──────────────────────────────────────────── */
@@ -73,7 +75,7 @@ function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign
       <div className={s.thumbWrap}>
         {img.has_aligned ? (
           <img
-            src={`${getAlignedImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+            src={getAlignedImageUrl(img.id, img.content_hash)}
             alt={date ? `Photo from ${date}` : img.original_filename}
             className={s.thumbnail}
             loading="lazy"
@@ -176,6 +178,7 @@ export default function ImageLibrary({
   recentUploadIds,
   onRefresh,
   onDismissRecent,
+  onDraggingChange,
 }: ImageLibraryProps) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
@@ -265,7 +268,9 @@ export default function ImageLibrary({
   const noFaceImages = images.filter((img) => !img.face_detected);
   const faceImages = images.filter((img) => img.face_detected);
   const recentImages = faceImages.filter((img) => recentUploadIds.has(img.id));
-  const previousImagesRaw = faceImages.filter((img) => !recentUploadIds.has(img.id));
+  // The main list always holds every photo, including ones just uploaded, so
+  // it never looks out of date; "Just uploaded" is an extra shortcut on top.
+  const previousImagesRaw = faceImages;
   const alignedCount = images.filter((img) => img.has_aligned).length;
   const failedCount = noFaceImages.length;
 
@@ -335,7 +340,16 @@ export default function ImageLibrary({
     }
 
     return (
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, list)}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={() => onDraggingChange?.(true)}
+        onDragCancel={() => onDraggingChange?.(false)}
+        onDragEnd={(e) => {
+          onDraggingChange?.(false);
+          handleDragEnd(e, list);
+        }}
+      >
         <SortableContext items={list.map((img) => img.id)} strategy={rectSortingStrategy}>
           <div className={s.grid}>
             {list.map((img) => (
@@ -429,7 +443,7 @@ export default function ImageLibrary({
                       <div key={img.id} className={cx(s.card, s.noFaceCard)} data-testid={`no-face-card-${img.id}`}>
                         <div className={s.thumbWrap}>
                           <img
-                            src={`${getOriginalImageUrl(img.id)}?v=${img.id}-${img.original_filename}`}
+                            src={getOriginalImageUrl(img.id, img.content_hash)}
                             alt={img.original_filename}
                             className={s.thumbnail}
                             loading="lazy"
@@ -476,7 +490,7 @@ export default function ImageLibrary({
                   "previously-processed-collapse-button",
                   previousCollapsed,
                   () => setPreviousCollapsed(!previousCollapsed),
-                  recentImages.length > 0 ? "Previously processed" : "All photos",
+                  "All photos",
                   previousImages.length === previousImagesRaw.length
                     ? previousImages.length
                     : `${previousImages.length} of ${previousImagesRaw.length}`

@@ -259,6 +259,7 @@ async def upload_images(
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
             "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
+            "content_hash": _content_version(image),
             "skipped": False,  # Explicitly mark as not skipped
         })
         saved_count += 1
@@ -338,6 +339,7 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
             image.right_eye_y = result.right_eye[1] if result.right_eye else None
             image.face_detected = result.success
             image.included_in_video = result.success
+            image.align_attempted = True
 
             item_result = {
                 "id": image.id,
@@ -403,6 +405,12 @@ def _sort_images(images: list) -> list:
     return sorted(images, key=key)
 
 
+def _content_version(img: Image) -> str:
+    """Cache key for an image's URLs. IDs can be reused after a delete (SQLite
+    reuses the highest rowid), so the URL must also change with the content."""
+    return (img.file_hash or f"id{img.id}")[:12]
+
+
 @router.get("")
 def list_images(request: Request, db: Session = Depends(get_db)):
     """List all images sorted by: manual sort_order, then numeric filename, then date."""
@@ -419,6 +427,8 @@ def list_images(request: Request, db: Session = Depends(get_db)):
             "created_at": img.created_at.isoformat() if img.created_at else None,
             "has_aligned": img.aligned_path is not None,
             "sort_order": img.sort_order,
+            "pending": not img.align_attempted,
+            "content_hash": _content_version(img),
         }
         for img in images
     ]
@@ -427,7 +437,10 @@ def list_images(request: Request, db: Session = Depends(get_db)):
     # Serialize once and use the same bytes for both ETag and response body
     body_bytes = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     etag = f'"{hashlib.md5(body_bytes).hexdigest()}"'
-    if request.headers.get("if-none-match") == etag:
+    # Cloudflare turns strong ETags into weak ones (W/"...") when it compresses
+    # the response, and browsers send that back. Compare ignoring the W/ prefix.
+    if_none_match = request.headers.get("if-none-match", "").removeprefix("W/")
+    if if_none_match == etag:
         # 304 Not Modified - no body, just headers
         return Response(
             status_code=304,
@@ -464,7 +477,13 @@ def reorder_images(
 @router.delete("/no-face")
 def delete_no_face_images(db: Session = Depends(get_db)):
     """Delete all images where no face was detected, along with their files."""
-    images = db.query(Image).filter(Image.face_detected == False).all()  # noqa: E712
+    # Only images that went through alignment: staged uploads (possibly from
+    # another device) also have face_detected=False and must not be deleted.
+    images = (
+        db.query(Image)
+        .filter(Image.face_detected == False, Image.align_attempted == True)  # noqa: E712
+        .all()
+    )
     deleted_count = 0
     for img in images:
         for path_str in [img.original_path, img.aligned_path]:
@@ -490,7 +509,7 @@ def get_aligned_image(image_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         image.aligned_path,
         media_type="image/jpeg",
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 
@@ -504,7 +523,7 @@ def get_original_image(image_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Original image not found")
     return FileResponse(
         image.original_path,
-        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
     )
 
 
@@ -560,6 +579,7 @@ def realign_image(image_id: int, db: Session = Depends(get_db)):
     image.right_eye_y = result.right_eye[1] if result.right_eye else None
     image.face_detected = result.success
     image.included_in_video = result.success
+    image.align_attempted = True
     db.commit()
 
     log.info("Re-aligned image %d (%s): %s", image_id, image.original_filename,

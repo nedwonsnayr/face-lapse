@@ -22,6 +22,8 @@ function hasFiles(e: DragEvent): boolean {
   return Array.from(e.dataTransfer?.types ?? []).includes("Files");
 }
 
+const REFRESH_MS = 30_000;
+
 export default function App() {
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,28 @@ export default function App() {
 
   useEffect(() => {
     fetchImages();
+  }, [fetchImages]);
+
+  // Keep in step with other devices: re-check when the tab comes back into view
+  // and every REFRESH_MS while it's visible. Cheap: unchanged lists come back as
+  // 304 (ETag), and listImages() then returns the same array, so React skips
+  // the re-render. Skipped mid-drag so a reorder isn't yanked out from under you.
+  const draggingRef = useRef(false);
+  const handleDraggingChange = useCallback((dragging: boolean) => {
+    draggingRef.current = dragging;
+  }, []);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible" && !draggingRef.current) fetchImages();
+    };
+    const timer = window.setInterval(refresh, REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, [fetchImages]);
 
   // Drop-anywhere: show an overlay while files are dragged over the window.
@@ -94,8 +118,11 @@ export default function App() {
     setRecentUploadIds(new Set());
   }, []);
 
-  const includedImages = images.filter((img) => img.included_in_video && img.has_aligned);
-  const range = yearRange(images);
+  // Uploads waiting to be aligned (possibly staged on another device) belong to
+  // the upload tray, not the library.
+  const libraryImages = images.filter((img) => !img.pending);
+  const includedImages = libraryImages.filter((img) => img.included_in_video && img.has_aligned);
+  const range = yearRange(libraryImages);
 
   return (
     <div className={s.app}>
@@ -109,9 +136,9 @@ export default function App() {
           </h1>
         </div>
         <div className={s.topbarRight}>
-          {images.length > 0 && (
+          {libraryImages.length > 0 && (
             <p className={s.stats}>
-              <span className={s.statNum}>{images.length.toLocaleString()}</span> photos
+              <span className={s.statNum}>{libraryImages.length.toLocaleString()}</span> photos
               {range && (
                 <>
                   <span className={s.dot} aria-hidden="true">·</span>
@@ -135,7 +162,7 @@ export default function App() {
           <ErrorBoundary section="Upload">
             <Upload
               ref={uploadRef}
-              compact={!loading && images.length > 0}
+              compact={!loading && libraryImages.length > 0}
               onAlignComplete={handleAlignComplete}
             />
           </ErrorBoundary>
@@ -147,10 +174,11 @@ export default function App() {
           ) : (
             <ErrorBoundary section="Image Library">
               <ImageLibrary
-                images={images}
+                images={libraryImages}
                 recentUploadIds={recentUploadIds}
                 onRefresh={fetchImages}
                 onDismissRecent={handleDismissRecent}
+                onDraggingChange={handleDraggingChange}
               />
             </ErrorBoundary>
           )}
