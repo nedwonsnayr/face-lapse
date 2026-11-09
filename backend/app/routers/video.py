@@ -1,6 +1,8 @@
 """Video generation and download endpoints."""
 
 import logging
+import hashlib
+import json
 import threading
 import time
 import uuid
@@ -15,60 +17,109 @@ log = logging.getLogger("face-lapse.video")
 
 from ..database import get_db
 from ..models import Image
-from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION, numeric_filename_key
+from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
 from ..services.video import generate_video
 from ..services.ordering import library_order
 
 router = APIRouter()
 
 # ── Background jobs ──────────────────────────────────────────────
-# Generating a 1,000+ frame video takes ~1.5–2.5 min on the server, longer than
-# Cloudflare's ~100 s proxy timeout. So /generate starts a job and returns at
-# once; the client polls /jobs/{id}. Jobs live in memory (single process, single
-# user); a restart just loses in-flight jobs, which the client reports as an error.
+# Single-process registry: reuse matching work and bound CPU admission.
+# Restart loses job/cache state; completed files retain their existing URLs.
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 _MAX_JOBS = 20
 
 
+def _export_key(metadata: list[dict], duration: float, dates: bool, age: bool) -> str:
+    frames = []
+    for item in metadata:
+        stat = Path(item["path"]).stat()
+        frames.append([
+            item.get("id"), item["path"], item.get("revision"),
+            stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns,
+            item.get("date").isoformat() if dates and item.get("date") else None,
+            item.get("age") if age else None,
+        ])
+    payload = ["styled-export-v1", duration, dates, age, frames]
+    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+
+
+def _public_job(job: dict) -> dict:
+    return {key: value for key, value in job.items() if not key.startswith("_")}
+
+
 def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> None:
-    t0 = time.time()
+    t0 = time.monotonic()
+
+    def progress(phase: str, completed: int, total: int) -> None:
+        with _jobs_lock:
+            _jobs[job_id].update(phase=phase, completed_frames=completed, frame_count=total)
+
+    stable_key = None
     try:
-        video_path = generate_video(image_metadata, frame_duration=frame_duration, show_dates=show_dates, show_age=show_age)
-    except Exception:  # noqa: BLE001 — surface any failure to the poller
+        video_path = generate_video(
+            image_metadata, frame_duration=frame_duration, show_dates=show_dates,
+            show_age=show_age, on_progress=progress,
+        )
+        # A source may have been re-aligned/deleted while the encoder was running.
+        # Such a result can be downloaded, but must not be reused as a cache hit.
+        if video_path:
+            try:
+                stable_key = _export_key(image_metadata, frame_duration, show_dates, show_age)
+            except OSError:
+                pass
+    except Exception:
         log.exception("Video job %s crashed", job_id)
         video_path = None
     with _jobs_lock:
         job = _jobs[job_id]
+        if stable_key != job["_key"]:
+            job["_key"] = None
         if video_path:
-            job.update(status="done", video_filename=Path(video_path).name)
-            log.info("Video ready: %s (%.1fs)", job["video_filename"], time.time() - t0)
+            job.update(status="done", phase="done", video_filename=Path(video_path).name)
+            log.info("Video ready: %s (%.1fs)", job["video_filename"], time.monotonic() - t0)
         else:
-            job.update(status="error", error="Could not create the video. Please try again.")
+            job.update(status="error", phase="error", error="Could not create the video. Please try again.")
             log.error("Video generation failed while rendering or encoding")
 
 
 def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> dict:
-    job_id = uuid.uuid4().hex
-    job = {
-        "job_id": job_id,
-        "status": "running",
-        "frame_count": len(image_metadata),
-        "frame_duration": frame_duration,
-        "total_duration": len(image_metadata) * frame_duration,
-        "video_filename": None,
-        "error": None,
-    }
+    try:
+        key = _export_key(image_metadata, frame_duration, show_dates, show_age)
+    except OSError:
+        raise HTTPException(status_code=409, detail="Photos changed. Refresh and try the export again.")
     with _jobs_lock:
-        # Drop the oldest finished jobs so the dict can't grow without bound.
-        finished = [k for k, v in _jobs.items() if v["status"] != "running"]
-        for k in finished[: max(0, len(_jobs) - _MAX_JOBS + 1)]:
-            del _jobs[k]
+        for existing in _jobs.values():
+            if existing["_key"] == key and (
+                existing["status"] == "running" or
+                (existing["status"] == "done" and (VIDEOS_DIR / existing["video_filename"]).is_file())
+            ):
+                log.info("Reusing %s export job %s", existing["status"], existing["job_id"])
+                return _public_job(existing)
+        if any(job["status"] == "running" for job in _jobs.values()):
+            raise HTTPException(status_code=409, detail="Another video is being created. Please try again when it finishes.")
+        job_id = uuid.uuid4().hex
+        job = {
+            "job_id": job_id, "status": "running", "phase": "rendering",
+            "completed_frames": 0, "frame_count": len(image_metadata),
+            "frame_duration": frame_duration,
+            "total_duration": len(image_metadata) * frame_duration,
+            "video_filename": None, "error": None, "_key": key,
+        }
+        # At admission no active jobs remain, so oldest entries can be evicted.
+        while len(_jobs) >= _MAX_JOBS:
+            del _jobs[next(iter(_jobs))]
         _jobs[job_id] = job
-    threading.Thread(
-        target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates, show_age), daemon=True
-    ).start()
-    return dict(job)
+        response = _public_job(job)
+        try:
+            threading.Thread(
+                target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates, show_age), daemon=True
+            ).start()
+        except Exception:
+            del _jobs[job_id]
+            raise
+    return response
 
 
 @router.post("/generate")
@@ -142,6 +193,7 @@ def generate_timelapse(
         {
             "id": img.id,
             "path": img.aligned_path,
+            "revision": img.alignment_version,
             "date": img.photo_taken_at,
             "age": calculate_age(img.photo_taken_at, birth_date) if show_age else None,
         }
@@ -163,7 +215,7 @@ def get_job(job_id: str):
         job = _jobs.get(job_id)
         if job is None:
             raise HTTPException(status_code=404, detail="Video job not found (the server may have restarted)")
-        return dict(job)
+        return _public_job(job)
 
 
 @router.get("/{filename}")

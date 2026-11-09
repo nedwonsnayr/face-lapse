@@ -84,3 +84,16 @@ class VideoExportTests(unittest.TestCase):
         self.assertGreater(caption_pixels(image)[1], 100)
         image = self.video.render_video_frame(str(self.source))
         self.assertEqual(caption_pixels(image), (0, 0))
+
+    def test_progress_reports_render_counts_then_encoding(self):
+        events = []
+        with patch.object(self.video, "VIDEOS_DIR", self.root):
+            result = self.video.generate_video(self.metadata * 2, on_progress=lambda *event: events.append(event))
+        self.assertTrue(result)
+        self.assertEqual(events, [("rendering", 0, 2), ("rendering", 1, 2), ("rendering", 2, 2), ("encoding", 2, 2)])
+
+    def test_rendering_does_not_mutate_reusable_background(self):
+        first = self.video.render_video_frame(str(self.source))
+        self.video.render_video_frame(str(self.source), "August 19, 2020", 24)
+        second = self.video.render_video_frame(str(self.source))
+        self.assertEqual(first.tobytes(), second.tobytes())

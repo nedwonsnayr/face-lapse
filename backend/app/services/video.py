@@ -3,6 +3,9 @@
 import logging
 import subprocess
 import uuid
+import time
+from functools import lru_cache
+from collections.abc import Callable
 from fractions import Fraction
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -31,8 +34,8 @@ def _tracked_text(draw: ImageDraw.ImageDraw, text: str, y: int, font, tracking: 
         x += draw.textlength(char, font=font) + tracking
 
 
-def render_video_frame(image_path: str, date_label: str | None = None, age: int | None = None) -> Image.Image:
-    """Compose the photo and optional independent captions; never edit the source."""
+@lru_cache(maxsize=1)
+def _background() -> Image.Image:
     canvas = Image.new("RGBA", (EXPORT_WIDTH, EXPORT_HEIGHT), PAPER + (255,))
     shadow = Image.new("RGBA", canvas.size)
     ImageDraw.Draw(shadow).rounded_rectangle((60, 60, 1140, 1500), radius=8, fill=(0, 0, 0, 40))
@@ -40,15 +43,27 @@ def render_video_frame(image_path: str, date_label: str | None = None, age: int 
     draw = ImageDraw.Draw(canvas)
     draw.rounded_rectangle((60, 48, 1140, 1488), radius=8, fill=MAT)
 
+    return canvas
+
+
+@lru_cache(maxsize=2)
+def _font(name: str, size: int):
+    return ImageFont.truetype(str(_FONT_DIR / name), size)
+
+
+def render_video_frame(image_path: str, date_label: str | None = None, age: int | None = None) -> Image.Image:
+    """Compose the photo and optional independent captions; never edit the source."""
+    canvas = _background().copy()
+
     with Image.open(image_path) as source:
         photo = ImageOps.contain(source.convert("RGB"), (1024, 1384), Image.Resampling.LANCZOS)
     canvas.paste(photo, (60 + (1080 - photo.width) // 2, 48 + (1440 - photo.height) // 2))
     draw = ImageDraw.Draw(canvas)
     if date_label:
-        font = ImageFont.truetype(str(_FONT_DIR / "Fraunces-Italic.ttf"), 56)
+        font = _font("Fraunces-Italic.ttf", 56)
         draw.text((EXPORT_WIDTH // 2, 1530), date_label, font=font, fill=INK, anchor="mt")
     if age is not None:
-        font = ImageFont.truetype(str(_FONT_DIR / "Inter-SemiBold.ttf"), 26)
+        font = _font("Inter-SemiBold.ttf", 26)
         _tracked_text(draw, f"AGE {age}", 1614 if date_label else 1548, font)
     return canvas.convert("RGB")
 
@@ -58,6 +73,7 @@ def generate_video(
     frame_duration: float = DEFAULT_FRAME_DURATION,
     show_dates: bool = False,
     show_age: bool = False,
+    on_progress: Callable[[str, int, int], None] | None = None,
 ) -> str | None:
     """Compose uniform styled frames, then encode at the selected playback speed."""
     if not image_metadata:
@@ -68,6 +84,9 @@ def generate_video(
     completed = False
     try:
         with TemporaryDirectory(prefix="face-lapse-video-") as temp:
+            started = time.perf_counter()
+            if on_progress:
+                on_progress("rendering", 0, len(image_metadata))
             for index, metadata in enumerate(image_metadata):
                 taken = metadata.get("date")
                 label = f"{taken:%B} {taken.day}, {taken.year}" if show_dates and taken else None
@@ -75,6 +94,13 @@ def generate_video(
                 frame = render_video_frame(metadata["path"], label, age)
                 frame.save(Path(temp) / f"frame_{index:06d}.jpg", quality=95, subsampling=0)
                 frame.close()
+                if on_progress:
+                    on_progress("rendering", index + 1, len(image_metadata))
+
+            rendered = time.perf_counter()
+            log.info("Export rendered %d frames in %.2fs", len(image_metadata), rendered - started)
+            if on_progress:
+                on_progress("encoding", len(image_metadata), len(image_metadata))
 
             # Explicit rational cadence avoids concat-demuxer 25fps quantization
             # and the extra repeated last frame used by the previous exporter.
@@ -86,6 +112,7 @@ def generate_video(
                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path),
             ]
             result = subprocess.run(command, capture_output=True, text=True, timeout=600)
+            log.info("Export encoding finished in %.2fs", time.perf_counter() - rendered)
             if result.returncode != 0:
                 log.error("FFmpeg failed (exit %d): %s", result.returncode, result.stderr[-2000:])
                 return None

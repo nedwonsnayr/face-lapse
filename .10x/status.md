@@ -1,3 +1,7 @@
+# Export performance — implementation complete; verification in progress
+
+45 public-fixture frames: baseline 2.852s, optimized 1.523s; render 1.856s to 0.582s; all four modes pixel-identical. Test invalidation/admission/failure/progress and full regressions.
+
 # Export performance — design and planning complete
 
 ADR-007 and spec recorded before implementation. User authorized applying discussed improvements. Benchmark and implement renderer reuse, bounded job reuse and progress, then verify.
