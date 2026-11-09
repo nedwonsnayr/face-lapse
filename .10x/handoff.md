@@ -10,3 +10,6 @@ Next: the owner checks the site; then push/PR the branches and add the GH deploy
 
 ## manual-face-selection — Brainstorming
 Approved one-timelapse manual-selection workflow recorded. Spec self-review: no placeholders; automatic identity matching excluded.
+
+## manual-face-selection — Strategy
+Scope accepted: manual selection per photo, one timeline, persistent review queue.

@@ -28,3 +28,6 @@ Phase: Analysis Complete. Reviewed commit `1498415`; application code unchanged.
 
 ## manual-face-selection: Brainstorming
 Approved one-timelapse manual-selection workflow recorded. Spec self-review: no placeholders; automatic identity matching excluded.
+
+## manual-face-selection: Strategy
+Scope accepted: manual selection per photo, one timeline, persistent review queue.
