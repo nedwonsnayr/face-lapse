@@ -11,7 +11,15 @@ router = APIRouter()
 
 
 def get_profile_id(profile_id: int = Query(default=1, ge=1), db: Session = Depends(get_db)) -> int:
-    if db.get(Profile, profile_id) is None:
+    # This dependency and the endpoint run in separate worker-pool turns.
+    # Never retain a connection between them: a burst of photo requests can
+    # fill every worker with connection waiters and starve the endpoints that
+    # would release those connections. The shared Session can be reused below.
+    try:
+        exists = db.get(Profile, profile_id) is not None
+    finally:
+        db.close()
+    if not exists:
         raise HTTPException(status_code=404, detail="Person not found")
     return profile_id
 

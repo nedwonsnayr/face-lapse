@@ -71,6 +71,46 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()[0]
 
+    def test_burst_of_image_requests_does_not_starve_database_pool(self):
+        import asyncio
+        import httpx
+        from backend.app.database import get_db
+        from backend.app.main import app
+        # A small pool makes the same worker/connection contention reproducible
+        # without requiring hundreds of requests or a 30-second production timeout.
+        engine = create_engine(f"sqlite:///{self.root / 'test.db'}",
+                               connect_args={"check_same_thread": False},
+                               pool_size=2, max_overflow=0, pool_timeout=0.5)
+        sessions = sessionmaker(bind=engine)
+        image = self.upload()['id']
+        from backend.app.models import Image
+        with self.sessions() as db:
+            record = db.get(Image, image)
+            record.aligned_path = record.original_path
+            db.commit()
+        old = app.dependency_overrides[get_db]
+        def get_small_pool_db():
+            with sessions() as db:
+                yield db
+        app.dependency_overrides[get_db] = get_small_pool_db
+        async def burst():
+            transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                return await asyncio.gather(*[
+                    client.get(f'/api/images/{image}/{kind}?profile_id=1&size={size}')
+                    for _ in range(20)
+                    for kind, size in [('original', 'thumb'), ('aligned', 'thumb'),
+                                       ('aligned', 'frame'), ('original', 'full')]
+                ])
+        try:
+            responses = asyncio.run(burst())
+            self.assertEqual([r.status_code for r in responses], [200] * 80)
+            self.assertTrue(all(r.headers['content-type'] == 'image/jpeg' for r in responses))
+            self.assertEqual(engine.pool.checkedout(), 0)
+        finally:
+            app.dependency_overrides[get_db] = old
+            engine.dispose()
+
     def test_creation_validation_editing_and_invalid_scope(self):
         response = self.client.get('/api/profiles')
         self.assertEqual(response.json()[0]['name'], 'Ryan')

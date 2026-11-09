@@ -14,3 +14,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - export-performance: 29 backend, 49 browser checks and production build passed. ARM benchmark 16.320s to 8.705s (60 public frames), four modes pixel-identical. See export-performance QA report; full-library post-change time not measured.
 
 - person-profiles: see [person-profiles](person-profiles.md).
+
+- image-loading-recovery: release read connections between worker stages; concurrent-request regression.
