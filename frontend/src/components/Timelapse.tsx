@@ -128,7 +128,7 @@ export default function Timelapse({ images }: TimelapseProps) {
     setIsGenerating(true);
     setError(null);
     try {
-      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null);
+      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge);
       // Trigger download via a temporary link
       const url = `/api/video/${res.video_filename}`;
       const a = document.createElement("a");
@@ -175,8 +175,8 @@ export default function Timelapse({ images }: TimelapseProps) {
   const calculateAge = (imageDate: string | null): number | null => {
     if (!imageDate || !birthday) return null;
     
-    const birthDate = new Date(birthday);
-    const photoDate = new Date(imageDate);
+    const birthDate = new Date(`${birthday}T00:00:00`);
+    const photoDate = new Date(`${imageDate.slice(0, 10)}T00:00:00`);
     
     if (isNaN(birthDate.getTime()) || isNaN(photoDate.getTime())) return null;
     
@@ -190,7 +190,7 @@ export default function Timelapse({ images }: TimelapseProps) {
     return age >= 0 ? age : null;
   };
   const currentDate = currentImage?.photo_taken_at
-    ? new Date(currentImage.photo_taken_at).toLocaleDateString("en-US", {
+    ? new Date(`${currentImage.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric",
@@ -225,16 +225,14 @@ export default function Timelapse({ images }: TimelapseProps) {
           )}
         </div>
         <figcaption className={s.caption}>
-          {showDates && currentDate ? (
-            <div data-testid="timelapse-date-overlay" className={s.captionInner}>
-              <span className={s.captionDate}>{currentDate}</span>
-              {showAge && currentAge !== null && (
-                <span className={s.captionAge}>Age {currentAge}</span>
-              )}
-            </div>
-          ) : (
-            <span className={s.captionPlaceholder} aria-hidden="true" />
-          )}
+          <div className={s.captionInner}>
+            {showDates && currentDate && (
+              <span data-testid="timelapse-date-overlay" className={s.captionDate}>{currentDate}</span>
+            )}
+            {showAge && currentAge !== null && (
+              <span data-testid="timelapse-age-overlay" className={s.captionAge}>Age {currentAge}</span>
+            )}
+          </div>
         </figcaption>
       </figure>
 
@@ -307,20 +305,19 @@ export default function Timelapse({ images }: TimelapseProps) {
           </label>
 
           <div className={s.ageRow}>
-            <label className={forms.checkRow} data-disabled={!showDates}>
+            <label className={forms.checkRow}>
               <input
                 data-testid="show-age-toggle"
                 type="checkbox"
                 checked={showAge}
                 onChange={(e) => setShowAge(e.target.checked)}
-                disabled={!showDates}
                 className={forms.checkbox}
               />
               <span>Show age</span>
             </label>
             <div className={s.birthday}>
               <label
-                className={cx(s.birthdayLabel, !showDates && s.birthdayLabelDisabled)}
+                className={cx(s.birthdayLabel, !showAge && s.birthdayLabelDisabled)}
                 htmlFor="birthday-input"
               >
                 Birthday
@@ -330,7 +327,7 @@ export default function Timelapse({ images }: TimelapseProps) {
                 data-testid="birthday-input"
                 value={birthday}
                 onChange={setBirthday}
-                disabled={!showAge || !showDates}
+                disabled={!showAge}
               />
             </div>
           </div>

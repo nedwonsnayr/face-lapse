@@ -79,10 +79,6 @@
   color: var(--accent);
 }
 
-.captionPlaceholder {
-  display: block;
-}
-
 /* ── Transport ────────────────────────────────────── */
 
 .transport {

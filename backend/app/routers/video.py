@@ -31,10 +31,10 @@ _jobs_lock = threading.Lock()
 _MAX_JOBS = 20
 
 
-def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool) -> None:
+def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> None:
     t0 = time.time()
     try:
-        video_path = generate_video(image_metadata, frame_duration=frame_duration, show_dates=show_dates)
+        video_path = generate_video(image_metadata, frame_duration=frame_duration, show_dates=show_dates, show_age=show_age)
     except Exception:  # noqa: BLE001 — surface any failure to the poller
         log.exception("Video job %s crashed", job_id)
         video_path = None
@@ -48,7 +48,7 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
             log.error("Video generation failed (ffmpeg error)")
 
 
-def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool) -> dict:
+def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> dict:
     job_id = uuid.uuid4().hex
     job = {
         "job_id": job_id,
@@ -66,7 +66,7 @@ def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bo
             del _jobs[k]
         _jobs[job_id] = job
     threading.Thread(
-        target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates), daemon=True
+        target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates, show_age), daemon=True
     ).start()
     return dict(job)
 
@@ -81,8 +81,9 @@ def generate_timelapse(
     ),
     show_dates: bool = Query(
         default=False,
-        description="Whether to overlay dates on video frames",
+        description="Whether to show the date beneath each photo",
     ),
+    show_age: bool = Query(default=False, description="Whether to show age beneath each photo"),
     birthday: str | None = Query(
         default=None,
         description="Birthday in YYYY-MM-DD format for age calculation",
@@ -128,30 +129,31 @@ def generate_timelapse(
         return age if age >= 0 else None
 
     birth_date = None
-    if birthday:
+    if show_age:
+        if not birthday:
+            raise HTTPException(status_code=422, detail="Enter a birthday to show age in the video")
         try:
             birth_date = datetime.strptime(birthday, "%Y-%m-%d").date()
         except ValueError:
-            log.warning("Invalid birthday format: %s, ignoring", birthday)
+            raise HTTPException(status_code=422, detail="Birthday must be a valid date in YYYY-MM-DD format")
 
     # Build image metadata (all images now have dates stored in DB)
     image_metadata = [
         {
             "id": img.id,
             "path": img.aligned_path,
-            "date": img.photo_taken_at if show_dates else None,
-            "age": calculate_age(img.photo_taken_at, birth_date) if birthday and show_dates else None,
+            "date": img.photo_taken_at,
+            "age": calculate_age(img.photo_taken_at, birth_date) if show_age else None,
         }
         for img in valid_images
     ]
 
     # Generate video in the background (see _start_job)
-    show_age = birthday is not None and show_dates
     log.info(
         "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s",
         len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates, show_age,
     )
-    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates))
+    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates, show_age))
 
 
 @router.get("/jobs/{job_id}")

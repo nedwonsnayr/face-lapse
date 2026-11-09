@@ -75,3 +75,6 @@ ADR-006 written; dimensions, flags, validation and media contract fixed before c
 
 ## styled-video-export — Planning
 Ready for implementation. Pending crop-search change stays included in this draft branch.
+
+## styled-video-export — Implementation Complete
+Styled renderer/fonts, independent flags/calendar handling, unique outputs/rational cadence and regression cases implemented. Verify decoded MP4 appearance for all four modes, exact frame count/duration, birthday validation/timezone behavior and full regression suites.

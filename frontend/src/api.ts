@@ -280,14 +280,14 @@ async function readError(res: Response, fallback: string): Promise<Error> {
 export async function generateVideo(
   frameDuration: number,
   showDates: boolean = false,
-  birthday: string | null = null
+  birthday: string | null = null,
+  showAge: boolean = false
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
+    show_dates: String(showDates),
+    show_age: String(showAge),
   });
-  if (showDates) {
-    params.append("show_dates", "true");
-  }
   if (birthday) {
     params.append("birthday", birthday);
   }

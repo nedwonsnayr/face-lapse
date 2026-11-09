@@ -8,3 +8,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - manual-face-selection: implementation ready for verification.
 
 - crop-search-fallback: implemented; verification pending.
+
+- styled-video-export: implemented; media verification pending.
