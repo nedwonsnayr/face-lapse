@@ -1,3 +1,11 @@
+# Current status — styled-video-export
+Date: 2026-11-09
+Phase: Verification Complete; ready for review. Hosted app not updated.
+
+Screenshot-matched paper/mat/captions rendered into 1200x1800 MP4. Independent date/age in preview and export; calendar birthday handling; bundled licensed matching fonts; unique outputs and exact rational playback cadence. Local checks: backend 21/21, Chromium 47/47 (41.6s), build/diff passed. Decoded media verified for all four combinations. Crop-search PR #19 was merged while this feature was developed; styled export is on its own follow-up branch. ADR-006 and reviews/2026-11-09-styled-export-*.
+
+## Previous status history
+
 # Current status — crop-search-fallback
 Date: 2026-11-09
 Phase: Verification Complete; ready for local delivery/review. No hosted deployment performed.
@@ -82,3 +90,18 @@ Ready to implement bounded search. Source repository and real library data remai
 
 ## crop-search-fallback — Implementation Complete
 Bounded crop search and original-coordinate mapping added. Public padded regression fixture; supplied HEIC yields two faces locally. Verify all suites and render original alignment outputs. No private image committed; no deployment performed.
+
+## styled-video-export — Brainstorming
+User-provided screenshot is the accepted visual design; four independent visibility combinations explicit. Spec self-reviewed before implementation.
+
+## styled-video-export — Strategy
+Selected server-side deterministic frame composition with existing libraries; no database or hosting change.
+
+## styled-video-export — Design
+ADR-006 written; dimensions, flags, validation and media contract fixed before code changes.
+
+## styled-video-export — Planning
+Ready for implementation. Pending crop-search change stays included in this draft branch.
+
+## styled-video-export — Implementation Complete
+Styled renderer/fonts, independent flags/calendar handling, unique outputs/rational cadence and regression cases implemented. Verify decoded MP4 appearance for all four modes, exact frame count/duration, birthday validation/timezone behavior and full regression suites.

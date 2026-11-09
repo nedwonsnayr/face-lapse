@@ -4,6 +4,9 @@ import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
 import s from "./DatePicker.module.css";
 
+const calendarDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
 interface DatePickerProps {
   value: string; // YYYY-MM-DD format
   onChange: (value: string) => void;
@@ -59,7 +62,7 @@ export default function DatePicker({
 
   const handleDateClick = (day: number) => {
     const newDate = new Date(year, month, day);
-    const dateStr = newDate.toISOString().split("T")[0];
+    const dateStr = calendarDate(newDate);
     onChange(dateStr);
     setIsOpen(false);
   };
@@ -92,7 +95,7 @@ export default function DatePicker({
 
   const handleToday = () => {
     const today = new Date();
-    const dateStr = today.toISOString().split("T")[0];
+    const dateStr = calendarDate(today);
     onChange(dateStr);
     setViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
   };

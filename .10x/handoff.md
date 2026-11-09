@@ -1,3 +1,11 @@
+# Current handoff — styled-video-export
+
+Ready for review on codex/styled-video-export; crop-search PR #19 is already merged. Exports now compose paper, dark mat/shadow, italic date and red tracked age below the photo, with no UI controls. Date/age independently selectable; birthday required only for age. Both flags propagate through api.ts, router, background job and renderer. Static licensed font assets copied by current Dockerfile. Output 1200x1800; aligned sources unchanged. Explicit sequence cadence and UUID filenames keep speed/options correct.
+
+Validation: 21 backend, 47 browser tests, production build; actual MP4 captions tested in all four modes. No deployment yet. See ADR-006, specs/2026-11-09-styled-video-export-design.md and reviews/2026-11-09-styled-export-*. No DB migration required.
+
+## Previous handoff history
+
 # Current handoff — crop-search-fallback
 
 Implemented and verified: baseline full/downscaled detector first, then at most nine overlapping half-frame crops, max 1024px per crop, remapped to original normalized eyes/bounds and deduplicated. Existing selection flow unchanged. The supplied personal HEIC works locally; no personal photo pushed or placed in repository. Public padded fixture plus full regression tests pass (backend 15, browser 42, build).
@@ -63,3 +71,18 @@ Ready to implement bounded search. Source repository and real library data remai
 
 ## crop-search-fallback — Implementation Complete
 Bounded crop search and original-coordinate mapping added. Public padded regression fixture; supplied HEIC yields two faces locally. Verify all suites and render original alignment outputs. No private image committed; no deployment performed.
+
+## styled-video-export — Brainstorming
+User-provided screenshot is the accepted visual design; four independent visibility combinations explicit. Spec self-reviewed before implementation.
+
+## styled-video-export — Strategy
+Selected server-side deterministic frame composition with existing libraries; no database or hosting change.
+
+## styled-video-export — Design
+ADR-006 written; dimensions, flags, validation and media contract fixed before code changes.
+
+## styled-video-export — Planning
+Ready for implementation. Pending crop-search change stays included in this draft branch.
+
+## styled-video-export — Implementation Complete
+Styled renderer/fonts, independent flags/calendar handling, unique outputs/rational cadence and regression cases implemented. Verify decoded MP4 appearance for all four modes, exact frame count/duration, birthday validation/timezone behavior and full regression suites.

@@ -220,6 +220,41 @@ class FaceSelectionTests(unittest.TestCase):
         self.assertTrue(self.client.post(f"/api/images/{image_id}/realign").json()["face_detected"])
         self.assertEqual(self.client.get("/api/images").json()[0]["selected_face_index"], 1)
 
+    def test_export_date_and_age_flags_are_independent(self):
+        from datetime import datetime
+        from unittest.mock import patch
+        from backend.app.database import SessionLocal
+        from backend.app.models import Image
+        image_id = self.upload("face_1.jpg")
+        self.align(image_id)
+        with SessionLocal() as db:
+            db.get(Image, image_id).photo_taken_at = datetime(2020, 8, 19)
+            db.commit()
+        for dates in [False, True]:
+            for age in [False, True]:
+                with self.subTest(dates=dates, age=age):
+                    with patch("backend.app.routers.video._start_job", return_value={"status": "running"}) as job:
+                        response = self.client.post("/api/video/generate", params={
+                            "show_dates": str(dates).lower(), "show_age": str(age).lower(), "birthday": "1995-10-06",
+                        })
+                    self.assertEqual(response.status_code, 202, response.text)
+                    metadata, _, actual_dates, actual_age = job.call_args.args
+                    self.assertEqual((actual_dates, actual_age), (dates, age))
+                    self.assertEqual(metadata[0]["date"], datetime(2020, 8, 19))
+                    self.assertEqual(metadata[0]["age"], 24 if age else None)
+
+    def test_age_export_requires_valid_birthday_only_when_enabled(self):
+        from unittest.mock import patch
+        image_id = self.upload("face_1.jpg")
+        self.align(image_id)
+        for birthday in [None, "garbage", "1995-02-30"]:
+            params = {"show_age": "true", "show_dates": "false"}
+            if birthday is not None:
+                params["birthday"] = birthday
+            self.assertEqual(self.client.post("/api/video/generate", params=params).status_code, 422)
+        with patch("backend.app.routers.video._start_job", return_value={"status": "running"}):
+            self.assertEqual(self.client.post("/api/video/generate", params={"show_age": "false", "birthday": "unused"}).status_code, 202)
+
     def test_additive_migration_is_idempotent_and_preserves_legacy_rows(self):
         migration = importlib.import_module("migrations.007_add_face_selection")
         engine = create_engine("sqlite://")

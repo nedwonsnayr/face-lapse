@@ -50,7 +50,7 @@ To run it in the cloud and reach it from anywhere (Oracle Cloud free VM + Cloudf
 4. **Choose your face** — When multiple faces are detected, the photo waits in **Choose your face**. Click the photo, select your numbered face outline, then **Align this face**. Your choice is saved for that photo and reused on re-alignment. The review queue survives reloads. Use **Change face** (the eye icon) on a library photo to pick again. Detection is best-effort; only detected faces can be selected.
 5. **Library** — Browse aligned images. Toggle inclusion/exclusion, reorder with arrow buttons, or dismiss "no face detected" images in bulk.
 6. **Timelapse** — A live slideshow plays through your aligned images. Adjust the speed slider in real-time and scrub to any frame.
-7. **Download** — Click "Download Video" to generate and download an MP4.
+7. **Download** — Click "Download Video" to generate a 1200×1800 MP4 with the same paper background, dark photo mat, italic date and red age caption as the preview. Date and age are independent: show either, both or neither. Age needs a birthday and a photo date, even when the date caption is hidden. Playback controls are not included in the video.
 
 ## Data Management
 
