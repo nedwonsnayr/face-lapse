@@ -1,3 +1,13 @@
+# Current handoff — manual-face-selection
+
+Implemented and verified for local use; no cloud rollout. Spec: `specs/2026-11-09-manual-face-selection-design.md`; architecture: ADR-004. QA and security reports are under `reviews/2026-11-09-face-selection-*`.
+
+Usage: upload/align; multiple detected faces wait in Choose your face. Select a numbered outline, then Align this face. Saved geometry is reused on re-align. Library eye action is Change face. Each new group photo asks for a choice; no automatic identity matching. Queue survives reload and completed processing survives a disconnected stream. Individual queue removal requires confirmation.
+
+Migration 007 is additive and idempotent; runs on startup. Existing images are preserved until explicitly changed. Runtime requirements unchanged; `make install` now installs test-only httpx too. `make test-backend`, `make test-e2e`, and frontend `npm run build` are the checks. For a later hosted rollout, use the existing hosting runbook and backup first; rollback application code can ignore the added columns. No live rollout or backup check was performed here.
+
+## Previous handoff history
+
 # Current handoff — app analysis (2026-11-09)
 
 Review complete. See `reviews/2026-11-09-app-analysis.md` and `decisions/{senior-engineer,qa,security}/app-analysis.md`. First proposed remediation: correct thumbnail cache identity and recover pending uploads; next isolate/bound exports and verify timing. No application changes were made. Obtain design approval before implementation under the 10x skill. This analysis does not establish current production health.
