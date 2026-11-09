@@ -91,3 +91,6 @@ Selected server-side deterministic frame composition with existing libraries; no
 
 ## styled-video-export — Design
 ADR-006 written; dimensions, flags, validation and media contract fixed before code changes.
+
+## styled-video-export — Planning
+Ready for implementation. Pending crop-search change stays included in this draft branch.
