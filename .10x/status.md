@@ -1,6 +1,6 @@
 # Current status — manual-face-selection
 Date: 2026-11-09
-Phase: Local Delivery Complete. Production deployment not performed.
+Phase: Deployment in progress — merge/deploy authorized by owner on 2026-11-09.
 
 - Approved: one timelapse centered on owner, manual face choice for group photos.
 - Done: ADR-004/spec/plan, detector and additive migration 007, saved selection API, reload-safe queue/picker, Change face, fresh rendition cache, regressions and CI integration.

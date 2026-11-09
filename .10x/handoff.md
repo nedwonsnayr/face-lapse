@@ -32,3 +32,6 @@ Implementation tasks ready. Work in isolated checkout with throwaway data; sourc
 
 ## manual-face-selection — Implementation Complete
 Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.
+
+## Hosted deployment authorized
+Fresh same-server DB snapshot verified (1,041 rows). GitHub PR/checks → merge → automatic deploy → revision/schema/health/auth smoke checks. Prior revision: 921b0a2. No fresh off-site backup; automatic approval review rejected egress/pruning.
