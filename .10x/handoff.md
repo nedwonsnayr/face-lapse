@@ -66,3 +66,6 @@ Bounded crop search and original-coordinate mapping added. Public padded regress
 
 ## styled-video-export — Brainstorming
 User-provided screenshot is the accepted visual design; four independent visibility combinations explicit. Spec self-reviewed before implementation.
+
+## styled-video-export — Strategy
+Selected server-side deterministic frame composition with existing libraries; no database or hosting change.
