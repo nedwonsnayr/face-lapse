@@ -6,6 +6,7 @@ import json
 import threading
 import time
 import uuid
+import re
 from datetime import date, datetime
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from ..models import Image
 from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
 from ..services.video import generate_video
 from ..services.ordering import library_order
+from .profiles import get_profile_id
 
 router = APIRouter()
 
@@ -62,6 +64,14 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
             image_metadata, frame_duration=frame_duration, show_dates=show_dates,
             show_age=show_age, on_progress=progress,
         )
+        # Persist ownership in the filename, so downloads remain scoped after a
+        # process restart evicts the in-memory job registry. Legacy files are Ryan's.
+        profile_id = _jobs[job_id]["_profile_id"]
+        if video_path and profile_id != 1:
+            source = Path(video_path)
+            target = source.with_name(f"person-{profile_id}-{source.name}")
+            source.replace(target)
+            video_path = str(target)
         # A source may have been re-aligned/deleted while the encoder was running.
         # Such a result can be downloaded, but must not be reused as a cache hit.
         if video_path:
@@ -84,14 +94,14 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
             log.error("Video generation failed while rendering or encoding")
 
 
-def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> dict:
+def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool, profile_id: int = 1) -> dict:
     try:
         key = _export_key(image_metadata, frame_duration, show_dates, show_age)
     except OSError:
         raise HTTPException(status_code=409, detail="Photos changed. Refresh and try the export again.")
     with _jobs_lock:
         for existing in _jobs.values():
-            if existing["_key"] == key and (
+            if existing["_profile_id"] == profile_id and existing["_key"] == key and (
                 existing["status"] == "running" or
                 (existing["status"] == "done" and (VIDEOS_DIR / existing["video_filename"]).is_file())
             ):
@@ -105,7 +115,7 @@ def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bo
             "completed_frames": 0, "frame_count": len(image_metadata),
             "frame_duration": frame_duration,
             "total_duration": len(image_metadata) * frame_duration,
-            "video_filename": None, "error": None, "_key": key,
+            "video_filename": None, "error": None, "_key": key, "_profile_id": profile_id,
         }
         # At admission no active jobs remain, so oldest entries can be evicted.
         while len(_jobs) >= _MAX_JOBS:
@@ -140,12 +150,13 @@ def generate_timelapse(
         description="Birthday in YYYY-MM-DD format for age calculation",
     ),
     db: Session = Depends(get_db),
+    profile_id: int = Depends(get_profile_id),
 ):
     """Generate an MP4 timelapse from all included aligned images."""
     # Get all included images with aligned versions
     images = (
         db.query(Image)
-        .filter(Image.included_in_video == True, Image.face_detected == True, Image.needs_face_selection == False)  # noqa: E712
+        .filter(Image.profile_id == profile_id, Image.included_in_video == True, Image.face_detected == True, Image.needs_face_selection == False)  # noqa: E712
         .all()
     )
 
@@ -205,22 +216,26 @@ def generate_timelapse(
         "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s",
         len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates, show_age,
     )
-    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates, show_age))
+    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates, show_age, profile_id=profile_id))
 
 
 @router.get("/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, profile_id: int = 1):
     """Poll a video generation job started by POST /generate."""
     with _jobs_lock:
         job = _jobs.get(job_id)
-        if job is None:
+        if job is None or job["_profile_id"] != profile_id:
             raise HTTPException(status_code=404, detail="Video job not found (the server may have restarted)")
         return _public_job(job)
 
 
 @router.get("/{filename}")
-def get_video_by_name(filename: str):
+def get_video_by_name(filename: str, profile_id: int = Depends(get_profile_id)):
     """Download a specific generated video by filename."""
+    owner = re.match(r"person-(\d+)-", filename)
+    file_profile_id = int(owner.group(1)) if owner else 1
+    if file_profile_id != profile_id:
+        raise HTTPException(status_code=404, detail="Video not found")
     video_path = (VIDEOS_DIR / filename).resolve()
     if video_path.parent != VIDEOS_DIR.resolve() or not video_path.is_file():
         raise HTTPException(status_code=404, detail="Video not found")

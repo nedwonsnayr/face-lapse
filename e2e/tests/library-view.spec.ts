@@ -104,7 +104,8 @@ test.describe("Face Lapse – library view switching at scale", () => {
     const dragFirstOnto = async (target: number, newestFirst = false) => {
       const [first, onto] = [await idAt(0), await idAt(target)];
       const handle = cards.first().locator('[title="Drag to reorder"]');
-      await handle.scrollIntoViewIfNeeded();
+      // Keep the source and target on screen, including the new people toolbar.
+      await handle.evaluate(el => el.scrollIntoView({ block: "center" }));
       const from = (await handle.boundingBox())!;
       const to = (await cards.nth(target).boundingBox())!;
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);

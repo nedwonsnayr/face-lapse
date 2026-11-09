@@ -62,7 +62,7 @@ test.describe("Styled export and independent captions", () => {
       json: { ...job, phase: "rendering", completed_frames: 25 }, status: 202,
     }));
     let polls = 0;
-    await page.route("**/api/video/jobs/progress-test", route => route.fulfill({
+    await page.route("**/api/video/jobs/progress-test?*", route => route.fulfill({
       json: ++polls === 1 ? { ...job, phase: "encoding", completed_frames: 100 }
         : { ...job, status: "error", phase: "error", error: "Test export interrupted" },
     }));

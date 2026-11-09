@@ -91,14 +91,14 @@ test.describe("Choose a face for one timelapse", () => {
     const image = (await (await page.request.get("/api/images")).json())[0];
     await page.getByTestId(`choose-face-${image.id}`).click();
     await page.getByTestId("face-option-0").click();
-    await page.route("**/select-face", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "Please retry alignment" }) }));
+    await page.route("**/select-face?*", (route) => route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "Please retry alignment" }) }));
     await page.getByTestId("confirm-face-selection").click();
     await expect(page.getByRole("alert")).toHaveText("Please retry alignment");
     await expect(page.getByTestId("face-option-0")).toHaveAttribute("aria-pressed", "true");
     const bounds = await page.getByTestId("face-picker").boundingBox();
     expect(bounds!.width).toBeLessThan(390);
     await page.screenshot({ path: "test-results/face-picker-phone.png" });
-    await page.unroute("**/select-face");
+    await page.unroute("**/select-face?*");
     await page.getByTestId("confirm-face-selection").click();
     await expect(page.getByTestId("timelapse-frame")).toBeVisible();
   });

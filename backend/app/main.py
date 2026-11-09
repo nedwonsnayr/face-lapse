@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from .database import engine, Base
 from .config import ensure_directories, DATA_DIR, STATIC_DIR, CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
 from .access import CloudflareAccessMiddleware
-from .routers import images, video
+from .routers import images, video, profiles
 
 # ── Logging setup ────────────────────────────────────────────────
 logging.basicConfig(
@@ -101,6 +101,7 @@ if CF_ACCESS_TEAM_DOMAIN and CF_ACCESS_AUD:
         exempt_paths={"/api/health"},
     )
 
+app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(video.router, prefix="/api/video", tags=["video"])
 

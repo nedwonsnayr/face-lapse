@@ -1,15 +1,24 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON, ForeignKey
 from .database import Base
 
 def _utcnow():
     return datetime.now(timezone.utc)
 
 
+class Profile(Base):
+    __tablename__ = "profiles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(80), nullable=False)
+    birthday = Column(String(10), nullable=True)
+
+
 class Image(Base):
     __tablename__ = "images"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    profile_id = Column(Integer, ForeignKey("profiles.id"), nullable=False, default=1, server_default="1", index=True)
     original_filename = Column(String, nullable=False)  # Integer-based name (e.g. "43.heic")
     source_filename = Column(String, nullable=True)      # Phone's original name (e.g. "IMG_0733.HEIC")
     original_path = Column(String, nullable=False)

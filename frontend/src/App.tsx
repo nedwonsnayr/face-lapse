@@ -6,8 +6,11 @@ import Timelapse from "./components/Timelapse";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Button } from "./components/ui/Button";
 import Icon from "./components/ui/Icon";
-import { ImageRecord, listImages, AlignResponse } from "./api";
+import { ImageRecord, AlignResponse } from "./api";
 import s from "./App.module.css";
+import PersonTabs from "./components/PersonTabs";
+import { createProfileApi, listProfiles, Profile, saveProfile } from "./api";
+import { ProfileApiContext, useProfileApi } from "./ProfileContext";
 
 function yearRange(images: ImageRecord[]): string | null {
   const years = images
@@ -25,24 +28,77 @@ function hasFiles(e: DragEvent): boolean {
 
 const REFRESH_MS = 30_000;
 
+const ACTIVE_PERSON_KEY = "face-lapse:active-person";
+
 export default function App() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeId, setActiveId] = useState<number>(() => {
+    try { return Number(localStorage.getItem(ACTIVE_PERSON_KEY)) || 1; } catch { return 1; }
+  });
+  const [error, setError] = useState<string | null>(null);
+  const profileRequest = useRef(0);
+  const load = useCallback(async () => {
+    const request = ++profileRequest.current;
+    try {
+      const data = await listProfiles();
+      if (request === profileRequest.current) { setProfiles(data); setError(null); }
+    } catch (err) {
+      if (request === profileRequest.current) setError(err instanceof Error ? err.message : "Could not load people");
+    }
+  }, []);
+  useEffect(() => {
+    void load();
+    const refresh = () => { if (document.visibilityState === "visible") void load(); };
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, REFRESH_MS);
+    return () => { window.removeEventListener("focus", refresh); clearInterval(timer); };
+  }, [load]);
+  const profile = profiles.find((p) => p.id === activeId) ?? profiles[0];
+  const api = useMemo(() => createProfileApi(profile?.id ?? 1), [profile?.id]);
+  const select = (id: number) => {
+    setActiveId(id);
+    requestAnimationFrame(() => document.getElementById(`person-tab-${id}`)?.focus({ preventScroll: true }));
+    try { localStorage.setItem(ACTIVE_PERSON_KEY, String(id)); } catch { /* unavailable storage */ }
+  };
+  const updated = (p: Profile) => {
+    ++profileRequest.current; // an older list response must not undo a local save
+    setProfiles((old) => old.some((v) => v.id === p.id) ? old.map((v) => v.id === p.id ? p : v) : [...old, p]);
+  };
+  const saved = (p: Profile) => { updated(p); select(p.id); };
+  if (!profile) return <div className={s.loading}>
+    {error ? <><p role="alert">{error}</p><Button onClick={load}>Try again</Button></> : "Loading people…"}
+  </div>;
+  return <ProfileApiContext.Provider value={api}>
+    <PersonWorkspace key={profile.id} profile={profile} onProfileSaved={updated}
+      tabs={<PersonTabs profiles={profiles} current={profile} onSelect={select} onSaved={saved} />} />
+  </ProfileApiContext.Provider>;
+}
+
+function PersonWorkspace({ profile, tabs, onProfileSaved }: {
+  profile: Profile; tabs: React.ReactNode; onProfileSaved: (profile: Profile) => void;
+}) {
+  const { listImages } = useProfileApi();
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [facePickerId, setFacePickerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentUploadIds, setRecentUploadIds] = useState<Set<number>>(new Set());
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const uploadRef = useRef<UploadHandle>(null);
+  const alive = useRef(true);
+  const requestNumber = useRef(0);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
 
   const fetchImages = useCallback(async () => {
+    const number = ++requestNumber.current;
     try {
       const data = await listImages();
-      setImages(data);
+      if (alive.current && number === requestNumber.current) setImages(data);
     } catch (err) {
       console.error("Failed to fetch images:", err);
     } finally {
-      setLoading(false);
+      if (alive.current && number === requestNumber.current) setLoading(false);
     }
-  }, []);
+  }, [listImages]);
 
   useEffect(() => {
     fetchImages();
@@ -158,17 +214,19 @@ export default function App() {
             variant="primary"
             icon="plus"
             onClick={() => uploadRef.current?.openFilePicker()}
+            aria-label={`Add photos for ${profile.name}`}
           >
             Add photos
           </Button>
         </div>
       </header>
-
-      <main className={s.shell}>
+      {tabs}
+      <main id="person-workspace" role="tabpanel" aria-labelledby={`person-tab-${profile.id}`} className={s.shell}>
         <section className={s.libraryPane} aria-label="Library">
           <ErrorBoundary section="Upload">
             <Upload
               ref={uploadRef}
+              pendingImages={loading ? undefined : images.filter((img) => img.pending)}
               compact={!loading && libraryImages.length > 0}
               onAlignComplete={handleAlignComplete}
             />
@@ -197,7 +255,10 @@ export default function App() {
         <aside className={s.studioPane} aria-label="Timelapse">
           {!loading && (
             <ErrorBoundary section="Timelapse">
-              <Timelapse images={includedImages} />
+              <Timelapse images={includedImages} initialBirthday={profile.birthday} onBirthdayChange={async (birthday) => {
+                const updated = await saveProfile({ name: profile.name, birthday: birthday || null }, profile.id);
+                onProfileSaved(updated);
+              }} />
             </ErrorBoundary>
           )}
         </aside>
@@ -215,7 +276,7 @@ export default function App() {
         <div className={s.dropOverlay} aria-hidden="true">
           <div className={s.dropCard}>
             <Icon name="upload" size={28} />
-            <p className={s.dropTitle}>Drop to add photos</p>
+            <p className={s.dropTitle}>Drop to add photos for {profile.name}</p>
             <p className={s.dropHint}>JPG, PNG, WebP or HEIC</p>
           </div>
         </div>

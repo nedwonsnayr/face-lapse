@@ -156,7 +156,7 @@ def interpolate_dates(images: list[Image]) -> list[dict[str, Any]]:
     return result
 
 
-def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None) -> int:
+def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None, profile_id: int | None = None) -> int:
     """
     Interpolate and store dates for images missing photo_taken_at.
     
@@ -168,17 +168,21 @@ def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None)
     """
     from ..services.ordering import library_order
     
+    # Never use another person's dates as interpolation neighbours.
+    query = db.query(Image)
+    if profile_id is not None:
+        query = query.filter(Image.profile_id == profile_id)
     # Get images to process
     if image_ids:
-        images = db.query(Image).filter(Image.id.in_(image_ids)).all()
+        images = query.filter(Image.id.in_(image_ids)).all()
     else:
-        images = db.query(Image).filter(Image.photo_taken_at.is_(None)).all()
+        images = query.filter(Image.photo_taken_at.is_(None)).all()
     
     if not images:
         return 0
     
     # Get all images sorted chronologically (needed for interpolation context)
-    all_images = db.query(Image).all()
+    all_images = query.all()
     all_images_sorted = library_order(all_images)
     
     # Build mapping of image ID to index in sorted list
