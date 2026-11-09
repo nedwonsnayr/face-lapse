@@ -23,7 +23,7 @@ ACCENT = (164, 55, 42)
 _FONT_DIR = Path(__file__).resolve().parents[1] / "assets" / "fonts"
 
 
-def _tracked_text(draw: ImageDraw.ImageDraw, text: str, y: int, font, tracking: int = 4) -> None:
+def _tracked_text(draw: ImageDraw.ImageDraw, text: str, y: int, font, tracking: int = 3) -> None:
     width = sum(draw.textlength(char, font=font) for char in text) + tracking * (len(text) - 1)
     x = (EXPORT_WIDTH - width) / 2
     for char in text:
@@ -45,11 +45,11 @@ def render_video_frame(image_path: str, date_label: str | None = None, age: int 
     canvas.paste(photo, (60 + (1080 - photo.width) // 2, 48 + (1440 - photo.height) // 2))
     draw = ImageDraw.Draw(canvas)
     if date_label:
-        font = ImageFont.truetype(str(_FONT_DIR / "Fraunces-Italic.ttf"), 64)
+        font = ImageFont.truetype(str(_FONT_DIR / "Fraunces-Italic.ttf"), 56)
         draw.text((EXPORT_WIDTH // 2, 1530), date_label, font=font, fill=INK, anchor="mt")
     if age is not None:
-        font = ImageFont.truetype(str(_FONT_DIR / "Inter-SemiBold.ttf"), 28)
-        _tracked_text(draw, f"AGE {age}", 1620 if date_label else 1548, font)
+        font = ImageFont.truetype(str(_FONT_DIR / "Inter-SemiBold.ttf"), 26)
+        _tracked_text(draw, f"AGE {age}", 1614 if date_label else 1548, font)
     return canvas.convert("RGB")
 
 
