@@ -48,6 +48,20 @@ test.describe("Choose a face for one timelapse", () => {
     expect((await (await page.request.get("/api/images")).json())[0].selected_face_index).toBe(0);
   });
 
+  test("distant faces reach the picker and align without cropping the original", async ({ page }) => {
+    await uploadAndStage(page, [path.resolve(__dirname, "../fixtures/distant_faces.jpg")]);
+    await alignStagedImages(page);
+    const image = (await (await page.request.get("/api/images")).json())[0];
+    await page.getByTestId(`choose-face-${image.id}`).click();
+    await expect(page.getByTestId("face-option-0")).toBeVisible();
+    await expect(page.getByTestId("face-option-1")).toBeVisible();
+    await expect(page.getByTestId("face-option-2")).toHaveCount(0);
+    await page.getByTestId("face-option-1").click();
+    await page.getByTestId("confirm-face-selection").click();
+    await expect(page.getByTestId("timelapse-frame")).toBeVisible();
+    expect((await (await page.request.get("/api/images")).json())[0].selected_face_index).toBe(1);
+  });
+
   test("cancelling leaves a queued photo available and keeps an existing alignment", async ({ page }) => {
     await uploadAndStage(page, [TWO_FACES, WITH_FACE[0]]);
     await alignStagedImages(page);

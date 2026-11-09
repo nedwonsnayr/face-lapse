@@ -151,6 +151,75 @@ class FaceSelectionTests(unittest.TestCase):
         self.assertTrue(image["needs_face_selection"])
         self.assertFalse(image["pending"])
 
+    def test_distant_faces_are_deduplicated_and_mapped_to_original(self):
+        import cv2
+        import math
+        from backend.app.services.alignment import detect_faces, _load_image_with_exif, _detect_face_landmarks
+        source = str(self.fixtures / "distant_faces.jpg")
+        rgb = cv2.cvtColor(_load_image_with_exif(source), cv2.COLOR_BGR2RGB)
+        self.assertEqual(len(_detect_face_landmarks(rgb)), 0, "Fixture must reproduce the full-frame miss")
+        faces = detect_faces(source)
+        self.assertEqual(len(faces), 2, "Overlapping crops must not create duplicate choices")
+        reference = detect_faces(str(self.fixtures / "two_faces.jpg"))
+        for original, detected in zip(reference, faces):
+            for eye in ["left_eye", "right_eye"]:
+                # Public composite is placed at (301,1000) in a 1204x2400 canvas.
+                expected = (original[eye][0] * 602 + 301, original[eye][1] * 400 + 1000)
+                actual = (detected[eye][0] * 1204, detected[eye][1] * 2400)
+                self.assertLess(math.dist(expected, actual), 16, "Eye coordinates must refer to the original, not a search tile")
+
+    def test_off_center_face_is_found_outside_center_crop(self):
+        import cv2
+        from backend.app.services.alignment import detect_faces, _load_image_with_exif, _detect_face_landmarks
+        canvas = PILImage.new("RGB", (1204, 2400), (210, 210, 210))
+        with PILImage.open(self.fixtures / "face_1.jpg") as face:
+            canvas.paste(face, (20, 1000))
+        source = Path(self.temp.name) / "off-center.jpg"
+        canvas.save(source)
+        rgb = cv2.cvtColor(_load_image_with_exif(str(source)), cv2.COLOR_BGR2RGB)
+        self.assertEqual(len(_detect_face_landmarks(rgb)), 0)
+        faces = detect_faces(str(source))
+        self.assertEqual(len(faces), 1)
+        self.assertLess(faces[0]["bounds"]["x"], .25)
+        self.assertLess(faces[0]["left_eye"][0], .25)
+
+    def test_close_up_face_keeps_existing_fast_path(self):
+        from unittest.mock import patch
+        from backend.app.services import alignment
+        with patch.object(alignment, "_search_crops", side_effect=AssertionError("Unnecessary crop search")):
+            self.assertEqual(len(alignment.detect_faces(str(self.fixtures / "face_1.jpg"))), 1)
+
+    def test_failed_detection_has_bounded_crop_count_and_resolution(self):
+        from unittest.mock import patch
+        import numpy as np
+        from backend.app.services import alignment
+        with patch.object(alignment, "_detect_face_landmarks", return_value=[]) as detector:
+            faces = alignment._faces_in_image(np.zeros((2200, 1000, 3), dtype=np.uint8))
+        self.assertEqual(faces, [])
+        self.assertEqual(detector.call_count, 11)  # original + downscaled + 9 crops
+        for call in detector.call_args_list[2:]:
+            self.assertLessEqual(max(call.args[0].shape[:2]), 1024)
+
+    def test_tiny_images_do_not_trigger_useless_crop_search(self):
+        from unittest.mock import patch
+        import numpy as np
+        from backend.app.services import alignment
+        with patch.object(alignment, "_detect_face_landmarks", return_value=[]) as detector:
+            self.assertEqual(alignment._faces_in_image(np.zeros((32, 32, 3), dtype=np.uint8)), [])
+        self.assertEqual(detector.call_count, 1)
+
+    def test_distant_photo_enters_picker_and_preserves_original_on_selection(self):
+        image_id = self.upload("distant_faces.jpg")
+        image = self.align(image_id)
+        self.assertTrue(image["needs_face_selection"])
+        choices = self.client.post(f"/api/images/{image_id}/faces").json()
+        self.assertEqual(len(choices["faces"]), 2)
+        response = self.client.post(f"/api/images/{image_id}/select-face", json={"face_index": 1})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.client.get(f"/api/images/{image_id}/original").content, (self.fixtures / "distant_faces.jpg").read_bytes())
+        self.assertTrue(self.client.post(f"/api/images/{image_id}/realign").json()["face_detected"])
+        self.assertEqual(self.client.get("/api/images").json()[0]["selected_face_index"], 1)
+
     def test_additive_migration_is_idempotent_and_preserves_legacy_rows(self):
         migration = importlib.import_module("migrations.007_add_face_selection")
         engine = create_engine("sqlite://")

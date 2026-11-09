@@ -6,3 +6,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - library-list-view: see [library-list-view](library-list-view.md)
 
 - manual-face-selection: implementation ready for verification.
+
+- crop-search-fallback: implemented; verification pending.

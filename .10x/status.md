@@ -1,12 +1,22 @@
+# Current status — crop-search-fallback
+Date: 2026-11-09
+Phase: Verification Complete; ready for local delivery/review. No hosted deployment performed.
+
+Bounded overlapping crop search after full-frame miss; duplicate suppression and original-coordinate geometry verified. Supplied HEIC now finds both foreground faces and aligns either. Tests: backend 15/15, Chromium 42/42 (30.1 s), production build and diff checks passed. Private photo remains local and excluded from git. Reports: reviews/2026-11-09-crop-search-{qa-report,security-review}.md. ADR-005. No migration or dependency changes.
+
+## Previous status history
+
 # Current status — manual-face-selection
 Date: 2026-11-09
-Phase: Deployment in progress — merge/deploy authorized by owner on 2026-11-09.
+Phase: Hosted Delivery Complete. PR #18 merged and deployed at `55a137a`; live checks passed.
 
 - Approved: one timelapse centered on owner, manual face choice for group photos.
 - Done: ADR-004/spec/plan, detector and additive migration 007, saved selection API, reload-safe queue/picker, Change face, fresh rendition cache, regressions and CI integration.
 - Validation: backend 9/9, Chromium 41/41 (28.9s), production frontend build and diff checks passed.
 - Reports: `reviews/2026-11-09-face-selection-qa-report.md` and `reviews/2026-11-09-face-selection-security-review.md`.
 - Delivery: reviewed commits delivered to `codex/manual-face-selection` in the original repository; working tree clean. No production data touched during verification.
+
+- Hosted verification: SQLite integrity ok, 1,041 records retained, migration 007 applied, app healthy, auth enforced, both fixture faces align on production ARM. See `reviews/2026-11-09-face-selection-deployment.md`.
 
 ## Previous status history
 
@@ -54,3 +64,21 @@ Implementation tasks ready. Work in isolated checkout with throwaway data; sourc
 Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.
 
 Hosted check 42660131648 blocked on Playwright/Ubuntu 26.04 incompatibility before tests. Pinned test runner to Ubuntu 24.04; rerun pending.
+
+## face-detection-distance (2026-11-09)
+Diagnosis complete: HEIC decoding succeeds; full-frame pipeline finds zero, tighter foreground crop finds two. No app changes. See decisions/qa/face-detection-distance.md.
+
+## crop-search-fallback — Brainstorming
+User-approved fallback behavior documented; spec reviewed for scope and ambiguity. No identity matching or original-image edits.
+
+## crop-search-fallback — Strategy
+Scope is a targeted detection fallback after a zero-face result; existing successful detections remain on the fast path.
+
+## crop-search-fallback — Design
+ADR-005 written. Crop input bound and coordinate contract defined before implementation.
+
+## crop-search-fallback — Planning
+Ready to implement bounded search. Source repository and real library data remain untouched during tests.
+
+## crop-search-fallback — Implementation Complete
+Bounded crop search and original-coordinate mapping added. Public padded regression fixture; supplied HEIC yields two faces locally. Verify all suites and render original alignment outputs. No private image committed; no deployment performed.
