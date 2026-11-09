@@ -52,3 +52,5 @@ Implementation tasks ready. Work in isolated checkout with throwaway data; sourc
 
 ## manual-face-selection — Implementation Complete
 Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.
+
+Hosted check 42660131648 blocked on Playwright/Ubuntu 26.04 incompatibility before tests. Pinned test runner to Ubuntu 24.04; rerun pending.
