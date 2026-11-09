@@ -69,3 +69,6 @@ User-provided screenshot is the accepted visual design; four independent visibil
 
 ## styled-video-export — Strategy
 Selected server-side deterministic frame composition with existing libraries; no database or hosting change.
+
+## styled-video-export — Design
+ADR-006 written; dimensions, flags, validation and media contract fixed before code changes.
