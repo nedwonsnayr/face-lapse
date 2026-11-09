@@ -10,3 +10,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: verified; see [styled-video-export](styled-video-export.md).
+
+- export-performance: 29 backend, 49 browser checks and production build passed. ARM benchmark 16.320s to 8.705s (60 public frames), four modes pixel-identical. See export-performance QA report; full-library post-change time not measured.

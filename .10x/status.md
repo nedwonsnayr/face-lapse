@@ -1,3 +1,7 @@
+# Export performance — verified, preparing pull request
+
+29 backend / 49 browser tests and build passed. ARM public-fixture full export 46.7% faster with pixel-identical frames. Static artwork/font reuse, bounded matching-job reuse, single-job admission, progress and phase timing. No deployment yet. Reports: reviews/2026-11-09-export-performance-*.md. ADR-007.
+
 # Export performance — implementation complete; verification in progress
 
 45 public-fixture frames: baseline 2.852s, optimized 1.523s; render 1.856s to 0.582s; all four modes pixel-identical. Test invalidation/admission/failure/progress and full regressions.

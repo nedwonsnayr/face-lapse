@@ -176,7 +176,7 @@ Upload limit: Cloudflare caps a single request at 100 MB. The app sends uploads 
 - **Cloudflare error 1033 / "tunnel not found":** the `cloudflared` container is down or `TUNNEL_TOKEN` is wrong. Check `docker compose logs cloudflared`.
 - **Error 502:** the tunnel is up but the app isn't. Check `docker compose ps` and `docker compose logs app`.
 - **403 "Invalid Cloudflare Access token":** `CF_ACCESS_AUD` or `CF_ACCESS_TEAM_DOMAIN` in `.env` doesn't match the Access application.
-- **Error 524 on Download Video:** generation took over 100 s, which is Cloudflare's limit. Video generation needs to become a background job; see `.10x/decisions/architect/cloud-hosting.md`.
+- **Slow Download Video:** generation runs as a background job. The UI shows preparing-photo counts, then encoding. Check app logs for `Export rendered`, `Export encoding finished`, and `Video ready` durations. Identical requests reuse a running/completed export while retained in the process-local 20-job registry; restart or eviction requires regeneration. A different export while one runs returns a retry message. Keep one application worker; the job registry is not shared across processes. Existing MP4s remain on disk with their original download URLs.
 - **healthchecks.io email "backup is down":** check `/var/log/face-lapse-backup.log` and test the B2 keys with `restic snapshots`.
 - **Oracle reclaimed or stopped the VM:** start it from the console. If it's gone, follow section 4.
 - **Rotate the tunnel token:** Zero Trust → Tunnels → face-lapse → *Refresh token*, update `.env`, then `docker compose up -d`.
