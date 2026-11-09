@@ -40,3 +40,6 @@ CI fix: use Ubuntu 24.04 for pinned Playwright. First run failed at browser inst
 
 ## Face-detection diagnostic
 Supplied full-body couple photo is missed at full-frame scale; same detector finds both faces in a tighter crop. See decisions/qa/face-detection-distance.md. Potential crop/tile fallback remains a proposed follow-up, not implemented. User asked for an explanation only.
+
+## crop-search-fallback — Brainstorming
+User-approved fallback behavior documented; spec reviewed for scope and ambiguity. No identity matching or original-image edits.

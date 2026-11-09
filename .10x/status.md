@@ -59,3 +59,6 @@ Hosted check 42660131648 blocked on Playwright/Ubuntu 26.04 incompatibility befo
 
 ## face-detection-distance (2026-11-09)
 Diagnosis complete: HEIC decoding succeeds; full-frame pipeline finds zero, tighter foreground crop finds two. No app changes. See decisions/qa/face-detection-distance.md.
+
+## crop-search-fallback — Brainstorming
+User-approved fallback behavior documented; spec reviewed for scope and ambiguity. No identity matching or original-image edits.
