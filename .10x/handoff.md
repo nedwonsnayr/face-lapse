@@ -46,3 +46,6 @@ User-approved fallback behavior documented; spec reviewed for scope and ambiguit
 
 ## crop-search-fallback — Strategy
 Scope is a targeted detection fallback after a zero-face result; existing successful detections remain on the fast path.
+
+## crop-search-fallback — Design
+ADR-005 written. Crop input bound and coordinate contract defined before implementation.
