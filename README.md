@@ -70,7 +70,7 @@ All data is stored in the `data/` directory (git-ignored):
 
 ## How It Works
 
-- **Face detection**: MediaPipe Face Mesh locates eye landmarks in each image. HEIC support via pillow-heif. EXIF orientation is applied before detection to handle rotated iPhone photos.
+- **Face detection**: MediaPipe Face Mesh locates eye landmarks in each image. If whole-photo detection fails, a bounded search of overlapping crops helps find smaller, distant faces; detections are mapped back to the original and duplicates merged. HEIC support via pillow-heif. EXIF orientation is applied before detection to handle rotated iPhone photos.
 - **Alignment**: An affine transform (rotate, scale, translate) maps each face so the eyes land at consistent positions across all images.
 - **Sorting**: Images are sorted by photo date (EXIF `DateTimeOriginal`, then filename date parsing for AirDrop-style names), with numeric filename as a fallback.
 - **Video generation**: FFmpeg stitches the aligned images into an MP4 at the configured frame rate.

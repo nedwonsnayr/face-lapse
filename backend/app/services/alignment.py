@@ -173,6 +173,13 @@ def _faces_in_image(img: np.ndarray) -> list[dict]:
         scale = _MAX_DETECT_DIM / max(w, h)
         small = cv2.resize(rgb, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         landmarks = _detect_face_landmarks(small, min_confidence=0.2)
+    faces = _landmarks_to_faces(landmarks)
+    if not faces:
+        faces = _search_crops(rgb)
+    return sorted(faces, key=lambda face: (face["bounds"]["x"], face["bounds"]["y"]))
+
+
+def _landmarks_to_faces(landmarks) -> list[dict]:
     faces = []
     for points in landmarks:
         x0 = max(0.0, min(p.x for p in points))
@@ -181,12 +188,72 @@ def _faces_in_image(img: np.ndarray) -> list[dict]:
         y1 = min(1.0, max(p.y for p in points))
         if x1 <= x0 or y1 <= y0:
             continue
+        left_eye = list(_get_eye_center(points, LEFT_EYE_INDICES, 1, 1))
+        right_eye = list(_get_eye_center(points, RIGHT_EYE_INDICES, 1, 1))
+        # A clipped face whose eyes fall outside the crop cannot be aligned.
+        if not all(0 <= value <= 1 for value in left_eye + right_eye):
+            continue
         faces.append({
             "bounds": {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
-            "left_eye": list(_get_eye_center(points, LEFT_EYE_INDICES, 1, 1)),
-            "right_eye": list(_get_eye_center(points, RIGHT_EYE_INDICES, 1, 1)),
+            "left_eye": left_eye,
+            "right_eye": right_eye,
         })
-    return sorted(faces, key=lambda face: face["bounds"]["x"])
+    return faces
+
+
+def _same_face(a: dict, b: dict, width: int, height: int) -> bool:
+    """Merge repeated detections from overlapping crops, not nearby people."""
+    box_a, box_b = a["bounds"], b["bounds"]
+    overlap_w = max(0.0, min(box_a["x"] + box_a["width"], box_b["x"] + box_b["width"]) - max(box_a["x"], box_b["x"]))
+    overlap_h = max(0.0, min(box_a["y"] + box_a["height"], box_b["y"] + box_b["height"]) - max(box_a["y"], box_b["y"]))
+    intersection = overlap_w * overlap_h
+    union = box_a["width"] * box_a["height"] + box_b["width"] * box_b["height"] - intersection
+    if union > 0 and intersection / union > 0.4:
+        return True
+
+    def eyes(face):
+        left = (face["left_eye"][0] * width, face["left_eye"][1] * height)
+        right = (face["right_eye"][0] * width, face["right_eye"][1] * height)
+        return ((left[0] + right[0]) / 2, (left[1] + right[1]) / 2), math.dist(left, right)
+
+    center_a, spacing_a = eyes(a)
+    center_b, spacing_b = eyes(b)
+    return math.dist(center_a, center_b) < 0.5 * min(spacing_a, spacing_b)
+
+
+def _search_crops(rgb: np.ndarray) -> list[dict]:
+    """Bounded 2x enlargement search; all geometry stays in original coordinates."""
+    height, width = rgb.shape[:2]
+    if min(height, width) < 64:
+        return []
+    crop_w, crop_h = width // 2, height // 2
+    xs = (0, (width - crop_w) // 2, width - crop_w)
+    ys = (0, (height - crop_h) // 2, height - crop_h)
+    # Center first keeps good, complete detections ahead of edge-clipped copies.
+    positions = [(xs[1], ys[1])] + [(x, y) for y in ys for x in xs if (x, y) != (xs[1], ys[1])]
+    faces = []
+    for x, y in positions:
+        crop = rgb[y:y + crop_h, x:x + crop_w]
+        if max(crop_w, crop_h) > 1024:
+            scale = 1024 / max(crop_w, crop_h)
+            crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        for face in _landmarks_to_faces(_detect_face_landmarks(crop)):
+            box = face["bounds"]
+            mapped = {
+                "bounds": {"x": (x + box["x"] * crop_w) / width,
+                           "y": (y + box["y"] * crop_h) / height,
+                           "width": box["width"] * crop_w / width,
+                           "height": box["height"] * crop_h / height},
+                "left_eye": [(x + face["left_eye"][0] * crop_w) / width,
+                             (y + face["left_eye"][1] * crop_h) / height],
+                "right_eye": [(x + face["right_eye"][0] * crop_w) / width,
+                              (y + face["right_eye"][1] * crop_h) / height],
+            }
+            if not any(_same_face(mapped, previous, width, height) for previous in faces):
+                faces.append(mapped)
+                if len(faces) == 10:
+                    return faces
+    return faces
 
 
 def align_image(input_path: str, output_path: str, selected_face: dict | None = None) -> AlignmentResult:

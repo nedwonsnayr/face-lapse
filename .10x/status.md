@@ -71,3 +71,6 @@ ADR-005 written. Crop input bound and coordinate contract defined before impleme
 
 ## crop-search-fallback — Planning
 Ready to implement bounded search. Source repository and real library data remain untouched during tests.
+
+## crop-search-fallback — Implementation Complete
+Bounded crop search and original-coordinate mapping added. Public padded regression fixture; supplied HEIC yields two faces locally. Verify all suites and render original alignment outputs. No private image committed; no deployment performed.
