@@ -280,7 +280,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
   const succeededCount =
     lastResult?.results.filter((r) => r.face_detected).length ?? 0;
   const failedCount =
-    lastResult?.results.filter((r) => !r.face_detected).length ?? 0;
+    lastResult?.results.filter((r) => !r.face_detected && !r.needs_face_selection).length ?? 0;
 
   // Calculate duplicate count and non-duplicate count
   const duplicateCount = stagedImages.filter((img) => img.skipped).length;
@@ -540,6 +540,9 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
             <Icon name="check" size={14} />
             {succeededCount} aligned successfully
           </span>
+          {lastResult.results.some((r) => r.needs_face_selection) && (
+            <span className={s.resultFail}>Multiple faces found. Choose your face below.</span>
+          )}
           {failedCount > 0 && (
             <span data-testid="alignment-result-failed" className={s.resultFail}>
               <Icon name="alert" size={14} />

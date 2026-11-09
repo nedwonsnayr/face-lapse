@@ -47,9 +47,10 @@ To run it in the cloud and reach it from anywhere (Oracle Cloud free VM + Cloudf
 1. **Upload** — Drag and drop selfies (or click to browse). Files are uploaded in batches and sorted by photo date (from EXIF or filename). Each image is auto-numbered sequentially. Supports JPG, PNG, WebP, and HEIC.
 2. **Review** — Thumbnails of uploaded originals appear in a staging area. Remove any wrong ones before proceeding.
 3. **Align** — Click "Align Images" to run face detection and alignment. A progress bar tracks each image.
-4. **Library** — Browse aligned images. Toggle inclusion/exclusion, reorder with arrow buttons, or dismiss "no face detected" images in bulk.
-5. **Timelapse** — A live slideshow plays through your aligned images. Adjust the speed slider in real-time and scrub to any frame.
-6. **Download** — Click "Download Video" to generate and download an MP4.
+4. **Choose your face** — When multiple faces are detected, the photo waits in **Choose your face**. Click the photo, select your numbered face outline, then **Align this face**. Your choice is saved for that photo and reused on re-alignment. The review queue survives reloads. Use **Change face** (the eye icon) on a library photo to pick again. Detection is best-effort; only detected faces can be selected.
+5. **Library** — Browse aligned images. Toggle inclusion/exclusion, reorder with arrow buttons, or dismiss "no face detected" images in bulk.
+6. **Timelapse** — A live slideshow plays through your aligned images. Adjust the speed slider in real-time and scrub to any frame.
+7. **Download** — Click "Download Video" to generate and download an MP4.
 
 ## Data Management
 
@@ -73,3 +74,7 @@ All data is stored in the `data/` directory (git-ignored):
 - **Alignment**: An affine transform (rotate, scale, translate) maps each face so the eyes land at consistent positions across all images.
 - **Sorting**: Images are sorted by photo date (EXIF `DateTimeOriginal`, then filename date parsing for AirDrop-style names), with numeric filename as a fallback.
 - **Video generation**: FFmpeg stitches the aligned images into an MP4 at the configured frame rate.
+
+## Tests
+
+`make test-backend` runs the detector/API/migration regression tests with a temporary database. `make test-e2e` runs the browser suite with isolated data. `cd frontend && npm run build` checks TypeScript and the production bundle. `make install` includes test dependencies; the production Docker image uses only runtime requirements.

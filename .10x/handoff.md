@@ -19,3 +19,6 @@ ADR-004 and component/schema decisions written. Proceed with the user-approved w
 
 ## manual-face-selection — Planning
 Implementation tasks ready. Work in isolated checkout with throwaway data; source repository receives reviewed committed changes after verification.
+
+## manual-face-selection — Implementation Complete
+Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.

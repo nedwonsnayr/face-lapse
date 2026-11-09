@@ -12,6 +12,8 @@ export interface ImageRecord {
   sort_order: number | null;
   /** Uploaded but not aligned yet (staged on some device). */
   pending: boolean;
+  needs_face_selection: boolean;
+  selected_face_index: number | null;
   /** Changes whenever the photo's content changes; used as the image URL cache key. */
   content_hash: string;
 }
@@ -28,6 +30,7 @@ export interface UploadedImage {
 }
 
 export interface AlignResult {
+  needs_face_selection?: boolean;
   id: number;
   original_filename: string;
   face_detected: boolean;
@@ -232,7 +235,7 @@ export async function reorderImages(
 
 export async function realignImage(
   id: number
-): Promise<{ id: number; face_detected: boolean; error: string | null }> {
+): Promise<{ id: number; face_detected: boolean; error: string | null; needs_face_selection: boolean }> {
   const res = await fetch(`${API_BASE}/images/${id}/realign`, {
     method: "POST",
   });
@@ -341,3 +344,35 @@ export function getOriginalImageUrl(id: number, version?: string, size: ImageSiz
   return imageUrl(id, "original", version, size);
 }
 
+export interface FaceCandidate {
+  bounds: { x: number; y: number; width: number; height: number };
+  left_eye: [number, number];
+  right_eye: [number, number];
+}
+
+export interface FaceChoices {
+  faces: FaceCandidate[];
+  selected_face_index: number | null;
+  content_hash: string;
+}
+
+export async function discoverFaces(id: number): Promise<FaceChoices> {
+  const res = await fetch(`${API_BASE}/images/${id}/faces`, { method: "POST" });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Could not find faces. Please try again.");
+  }
+  return res.json();
+}
+
+export async function selectFace(id: number, faceIndex: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/images/${id}/select-face`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ face_index: faceIndex }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "Could not align that face. Please try again.");
+  }
+}

@@ -1,0 +1,41 @@
+.review {
+  margin-block: var(--space-5);
+  padding: var(--space-4);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.review h2, .header h2 { font-family: var(--font-display); font-size: 24px; font-weight: 500; }
+.review h2 span { color: var(--muted); }
+.review p, .header p, .footer p { color: var(--muted); font-size: var(--text-sm); }
+.queue { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-4); }
+.queueItem { display: flex; flex-direction: column; gap: var(--space-1); width: 140px; text-align: left; }
+.choose { display: flex; flex-direction: column; gap: var(--space-1); text-align: left; }
+.queueItem img { width: 140px; height: 110px; object-fit: contain; background: var(--paper-deep); border-radius: var(--radius); }
+.queueItem span { font-size: var(--text-sm); font-weight: 600; }
+.queueItem small { color: var(--muted); overflow-wrap: anywhere; }
+.dialog {
+  margin: auto;
+  padding: var(--space-5);
+  width: min(680px, calc(100vw - 24px));
+  max-height: 90dvh;
+  overflow-y: auto;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lift);
+}
+.dialog::backdrop { background: rgba(20, 19, 17, .65); }
+.header { display: flex; align-items: start; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
+.photo { position: relative; width: 100%; background: var(--paper-deep); }
+.photo > img { display: block; width: 100%; height: auto; }
+.face { position: absolute; border: 3px solid white; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--ink); min-width: 24px; min-height: 24px; }
+.face[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); box-shadow: 0 0 0 2px white; }
+.face span { position: absolute; left: -3px; top: -3px; background: var(--ink); color: white; padding: 1px 7px; border-radius: 0 0 var(--radius-sm) 0; }
+.face[aria-pressed="true"] span { background: var(--accent); }
+.face:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.footer { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
+.footer p { flex: 1 1 100%; }
+.error { color: var(--danger); margin-top: var(--space-3); }
+@media (max-width: 480px) { .dialog { padding: var(--space-4); } }

@@ -1,4 +1,4 @@
-.PHONY: start backend frontend reset-db install test-e2e test-e2e-headed test-e2e-docker
+.PHONY: start backend frontend reset-db install test-e2e test-e2e-headed test-e2e-docker test-backend
 
 # Start both backend and frontend
 start:
@@ -15,6 +15,10 @@ frontend:
 # Reset the database and all data
 reset-db:
 	./scripts/reset-db.sh
+
+# Run backend integration tests with a disposable database
+test-backend:
+	.venv/bin/python -m unittest discover -s backend/tests -v
 
 # Run Playwright end-to-end tests (auto-starts isolated test server)
 test-e2e:
@@ -43,7 +47,7 @@ install:
 	fi
 	@echo "Setting up Python virtual environment..."
 	python3 -m venv .venv
-	. .venv/bin/activate && pip install -r backend/requirements.txt
+	. .venv/bin/activate && pip install -r backend/requirements-test.txt
 	@echo ""
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
