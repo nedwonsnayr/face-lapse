@@ -1,6 +1,6 @@
 # Current handoff — manual-face-selection
 
-Implemented, verified, and delivered locally on `codex/manual-face-selection`; no cloud rollout. Spec: `specs/2026-11-09-manual-face-selection-design.md`; architecture: ADR-004. QA and security reports are under `reviews/2026-11-09-face-selection-*`.
+Merged through PR #18 and deployed at `55a137a`. Live health, migration, record preservation, authentication boundary, frontend bundle and real detector/selection smoke checks passed. Details: `reviews/2026-11-09-face-selection-deployment.md`. Spec: `specs/2026-11-09-manual-face-selection-design.md`; architecture: ADR-004. QA and security reports are under `reviews/2026-11-09-face-selection-*`.
 
 Usage: upload/align; multiple detected faces wait in Choose your face. Select a numbered outline, then Align this face. Saved geometry is reused on re-align. Library eye action is Change face. Each new group photo asks for a choice; no automatic identity matching. Queue survives reload and completed processing survives a disconnected stream. Individual queue removal requires confirmation.
 

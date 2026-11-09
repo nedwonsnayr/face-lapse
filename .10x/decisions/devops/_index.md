@@ -4,3 +4,5 @@
 - cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)
 
 - manual-face-selection: implementation ready for verification.
+
+- manual-face-selection: hosted deployment complete at 55a137a; live verification passed.

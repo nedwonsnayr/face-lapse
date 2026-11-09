@@ -1,12 +1,14 @@
 # Current status — manual-face-selection
 Date: 2026-11-09
-Phase: Deployment in progress — merge/deploy authorized by owner on 2026-11-09.
+Phase: Hosted Delivery Complete. PR #18 merged and deployed at `55a137a`; live checks passed.
 
 - Approved: one timelapse centered on owner, manual face choice for group photos.
 - Done: ADR-004/spec/plan, detector and additive migration 007, saved selection API, reload-safe queue/picker, Change face, fresh rendition cache, regressions and CI integration.
 - Validation: backend 9/9, Chromium 41/41 (28.9s), production frontend build and diff checks passed.
 - Reports: `reviews/2026-11-09-face-selection-qa-report.md` and `reviews/2026-11-09-face-selection-security-review.md`.
 - Delivery: reviewed commits delivered to `codex/manual-face-selection` in the original repository; working tree clean. No production data touched during verification.
+
+- Hosted verification: SQLite integrity ok, 1,041 records retained, migration 007 applied, app healthy, auth enforced, both fixture faces align on production ARM. See `reviews/2026-11-09-face-selection-deployment.md`.
 
 ## Previous status history
 
