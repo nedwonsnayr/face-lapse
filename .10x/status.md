@@ -68,3 +68,6 @@ Scope is a targeted detection fallback after a zero-face result; existing succes
 
 ## crop-search-fallback — Design
 ADR-005 written. Crop input bound and coordinate contract defined before implementation.
+
+## crop-search-fallback — Planning
+Ready to implement bounded search. Source repository and real library data remain untouched during tests.
