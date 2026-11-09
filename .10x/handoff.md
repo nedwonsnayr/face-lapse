@@ -1,3 +1,11 @@
+# Person profiles — locally verified, preparing PR
+
+Person tabs, add/edit name and birthday, isolated libraries/capture/face queues/order/exports, safe async switching and pending recovery implemented. Migration 008 retains existing photos under Ryan. Backend 36 passed; Chromium 53 passed; affected upload/person suites 6 passed; build/diff clean. QA/security reports: reviews/2026-11-09-person-profiles-*.md. No deployment or real-library writes.
+
+# Person profiles — verification
+
+Backend complete and 36 tests pass. Verify final browser suite, migration retention and scoped export/capture. See ADR-008 and person-profiles spec. Production library untouched; open PR after checks.
+
 # Person profiles — implementation
 
 Approved spec and ADR-008 recorded. Implement scoped backend then keyed frontend workspace and verify with disposable data. No deployment yet.

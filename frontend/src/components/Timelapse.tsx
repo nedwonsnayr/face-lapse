@@ -1,5 +1,6 @@
+import { useProfileApi } from "../ProfileContext";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { generateVideo, getAlignedImageUrl, ImageRecord, VideoJob } from "../api";
+import { ImageRecord, VideoJob } from "../api";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { Button, IconButton } from "./ui/Button";
@@ -13,9 +14,12 @@ const PRELOAD_AHEAD = 8;
 interface TimelapseProps {
   /** Included+aligned images, in display order */
   images: ImageRecord[];
+  initialBirthday?: string | null;
+  onBirthdayChange?: (birthday: string) => Promise<void>;
 }
 
-export default function Timelapse({ images }: TimelapseProps) {
+export default function Timelapse({ images, initialBirthday, onBirthdayChange }: TimelapseProps) {
+  const { generateVideo, getAlignedImageUrl, getVideoUrl } = useProfileApi();
   const [frameDuration, setFrameDuration] = useState(0.05);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -23,8 +27,22 @@ export default function Timelapse({ images }: TimelapseProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(true);
-  const [showAge, setShowAge] = useState(true);
-  const [birthday, setBirthday] = useState("1995-10-06"); // Default to 10/06/1995
+  const [showAge, setShowAge] = useState(!!initialBirthday);
+  const [birthday, setBirthday] = useState(initialBirthday ?? "");
+  const [savingBirthday, setSavingBirthday] = useState(false);
+  const mounted = useRef(true);
+  const birthdayRequest = useRef(0);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => setBirthday(initialBirthday ?? ""), [initialBirthday]);
+  const changeBirthday = async (value: string) => {
+    setBirthday(value);
+    if (!onBirthdayChange) return;
+    const request = ++birthdayRequest.current;
+    setSavingBirthday(true);
+    try { await onBirthdayChange(value); }
+    catch { if (mounted.current) setError("Could not save the birthday. Please try again."); }
+    finally { if (mounted.current && request === birthdayRequest.current) setSavingBirthday(false); }
+  };
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear and restart interval whenever frameDuration or isPlaying changes
@@ -131,8 +149,9 @@ export default function Timelapse({ images }: TimelapseProps) {
     setError(null);
     try {
       const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress);
+      if (!mounted.current) return;
       // Trigger download via a temporary link
-      const url = `/api/video/${res.video_filename}`;
+      const url = getVideoUrl(res.video_filename);
       const a = document.createElement("a");
       a.href = url;
       const dateStr = new Date()
@@ -328,8 +347,8 @@ export default function Timelapse({ images }: TimelapseProps) {
                 id="birthday-input"
                 data-testid="birthday-input"
                 value={birthday}
-                onChange={setBirthday}
-                disabled={!showAge}
+                onChange={changeBirthday}
+                disabled={!showAge || savingBirthday}
               />
             </div>
           </div>
@@ -355,7 +374,7 @@ export default function Timelapse({ images }: TimelapseProps) {
           icon="download"
           block
           onClick={handleDownload}
-          disabled={isGenerating}
+          disabled={isGenerating || savingBirthday || (showAge && !birthday)}
         >
           {isGenerating ? "Generating..." : "Download Video"}
         </Button>

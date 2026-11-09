@@ -1,3 +1,4 @@
+import { useProfileApi } from "../ProfileContext";
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
@@ -14,16 +15,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import {
-  ImageRecord,
-  getAlignedImageUrl,
-  getOriginalImageUrl,
-  deleteImage,
-  toggleImage,
-  reorderImages,
-  deleteNoFaceImages,
-  realignImage,
-} from "../api";
+import { ImageRecord } from "../api";
 import { Button, IconButton } from "./ui/Button";
 import Icon from "./ui/Icon";
 import cx from "./ui/cx";
@@ -102,6 +94,7 @@ interface CardActionsProps {
 
 /** Thumbnail, hover actions, date and include toggle. Shared by sortable and static grids. */
 const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
+  const { getAlignedImageUrl } = useProfileApi();
   const date = formatCardDate(img.photo_taken_at);
   const isRealigning = realigningId === img.id;
   const isDeleting = deletingId === img.id;
@@ -206,6 +199,7 @@ function IncludeChip({ img, onToggle }: { img: ImageRecord; onToggle: (id: numbe
 
 /** One row in list view: thumbnail, full date, source filename, and always-visible controls. */
 const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
+  const { getAlignedImageUrl } = useProfileApi();
   const date = formatRowDate(img.photo_taken_at);
   return (
     <>
@@ -313,6 +307,7 @@ export default function ImageLibrary({
   onDismissRecent,
   onDraggingChange,
 }: ImageLibraryProps) {
+  const { getOriginalImageUrl, deleteImage, toggleImage, reorderImages, deleteNoFaceImages, realignImage } = useProfileApi();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
   const [previousCollapsed, setPreviousCollapsed] = useState(false);

@@ -1,3 +1,4 @@
+import { useProfileApi } from "../ProfileContext";
 import React, {
   forwardRef,
   useCallback,
@@ -6,16 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  uploadImages,
-  alignImages,
-  deleteImage,
-  getOriginalImageUrl,
-  UploadedImage,
-  AlignProgress,
-  AlignResponse,
-  UploadProgress,
-} from "../api";
+import { UploadedImage, AlignProgress, AlignResponse, UploadProgress } from "../api";
 import { Button, IconButton } from "./ui/Button";
 import Icon from "./ui/Icon";
 import cx from "./ui/cx";
@@ -23,6 +15,7 @@ import s from "./Upload.module.css";
 
 interface UploadProps {
   onAlignComplete: (result: AlignResponse) => void;
+  pendingImages?: UploadedImage[];
   /** Library already has photos: show a slim drop strip instead of the big empty state. */
   compact?: boolean;
 }
@@ -39,14 +32,27 @@ const DUPLICATE_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ede8df' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='sans-serif' font-size='11' fill='%23a29c92'%3EDuplicate%3C/text%3E%3C/svg%3E";
 
 const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
-  { onAlignComplete, compact = false },
+  { onAlignComplete, compact = false, pendingImages },
   ref
 ) {
+  const { uploadImages, alignImages, deleteImage, getOriginalImageUrl } = useProfileApi();
   const [isDragging, setIsDragging] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
   const [uploadCurrent, setUploadCurrent] = useState(0);
   const [uploadTotal, setUploadTotal] = useState(0);
   const [stagedImages, setStagedImages] = useState<UploadedImage[]>([]);
+  // Recover pending photos, including an upload that finished after we left
+  // and returned to this tab. Don't resurrect a stale list after align/cancel.
+  const knownPendingIds = useRef(new Set<number>());
+  useEffect(() => {
+    if (stage !== "idle" || !pendingImages) return;
+    const unseen = pendingImages.filter((img) => !knownPendingIds.current.has(img.id));
+    if (unseen.length) {
+      unseen.forEach((img) => knownPendingIds.current.add(img.id));
+      setStagedImages(unseen);
+      setStage("staging");
+    }
+  }, [pendingImages, stage]);
   const [alignCurrent, setAlignCurrent] = useState(0);
   const [alignTotal, setAlignTotal] = useState(0);
   const [lastResult, setLastResult] = useState<AlignResponse | null>(null);
@@ -58,6 +64,8 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const handleFiles = useCallback(async (files: File[]) => {
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
@@ -78,6 +86,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
         setUploadCurrent(p.uploaded);
         setUploadTotal(p.total);
       });
+      uploaded.forEach((img) => knownPendingIds.current.add(img.id));
       setStagedImages(uploaded);
       setStage("staging");
     } catch (err: unknown) {
@@ -190,6 +199,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
         audio: false,
       });
       
+      if (!mounted.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current = stream;
       setIsWebcamActive(true); // Set active after stream is ready
       

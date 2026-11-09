@@ -1,7 +1,25 @@
 const API_BASE = "/api";
+function scoped(path: string, profileId = 1): string {
+  return `${path}${path.includes("?") ? "&" : "?"}profile_id=${profileId}`;
+}
+
+export interface Profile { id: number; name: string; birthday: string | null }
+export async function listProfiles(): Promise<Profile[]> {
+  const res = await fetch(`${API_BASE}/profiles`);
+  if (!res.ok) throw await readError(res, "Could not load people");
+  return res.json();
+}
+export async function saveProfile(values: { name: string; birthday: string | null }, id?: number): Promise<Profile> {
+  const res = await fetch(`${API_BASE}/profiles${id ? `/${id}` : ""}`, {
+    method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values),
+  });
+  if (!res.ok) throw await readError(res, "Could not save this person");
+  return res.json();
+}
 
 export interface ImageRecord {
   id: number;
+  profile_id: number;
   original_filename: string;
   source_filename: string | null;
   face_detected: boolean;
@@ -101,7 +119,8 @@ export function batchFiles(
  */
 export async function uploadImages(
   files: File[],
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
+  profileId = 1
 ): Promise<UploadedImage[]> {
   const allResults: UploadedImage[] = [];
   let uploaded = 0;
@@ -110,7 +129,7 @@ export async function uploadImages(
     const formData = new FormData();
     batch.forEach((file) => formData.append("files", file));
 
-    const res = await fetch(`${API_BASE}/images/upload`, {
+    const res = await fetch(scoped(`${API_BASE}/images/upload`, profileId), {
       method: "POST",
       body: formData,
     });
@@ -136,9 +155,10 @@ export async function uploadImages(
  */
 export async function alignImages(
   imageIds: number[],
-  onProgress?: (progress: AlignProgress) => void
+  onProgress?: (progress: AlignProgress) => void,
+  profileId = 1
 ): Promise<AlignResponse> {
-  const res = await fetch(`${API_BASE}/images/align`, {
+  const res = await fetch(scoped(`${API_BASE}/images/align`, profileId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image_ids: imageIds }),
@@ -190,32 +210,32 @@ export async function alignImages(
   return finalResponse;
 }
 
-let _imagesEtag: string | null = null;
-let _imagesCached: ImageRecord[] = [];
+const imageCaches = new Map<number, { etag: string | null; images: ImageRecord[] }>();
 
-export async function listImages(): Promise<ImageRecord[]> {
+export async function listImages(profileId = 1): Promise<ImageRecord[]> {
+  const cached = imageCaches.get(profileId);
   const headers: Record<string, string> = {};
-  if (_imagesEtag) headers["If-None-Match"] = _imagesEtag;
+  if (cached?.etag) headers["If-None-Match"] = cached.etag;
 
-  const res = await fetch(`${API_BASE}/images`, { headers });
+  const res = await fetch(scoped(`${API_BASE}/images`, profileId), { headers });
 
-  if (res.status === 304) return _imagesCached;
+  if (res.status === 304 && cached) return cached.images;
   if (!res.ok) throw new Error("Failed to fetch images");
 
-  _imagesEtag = res.headers.get("etag");
-  _imagesCached = await res.json();
-  return _imagesCached;
+  const images = await res.json();
+  imageCaches.set(profileId, { etag: res.headers.get("etag"), images });
+  return images;
 }
 
-export async function deleteImage(id: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/images/${id}`, { method: "DELETE" });
+export async function deleteImage(id: number, profileId = 1): Promise<void> {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}`, profileId), { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete image");
 }
 
 export async function toggleImage(
-  id: number
+  id: number, profileId = 1
 ): Promise<{ id: number; included_in_video: boolean }> {
-  const res = await fetch(`${API_BASE}/images/${id}/toggle`, {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}/toggle`, profileId), {
     method: "PATCH",
   });
   if (!res.ok) throw new Error("Failed to toggle image");
@@ -223,9 +243,9 @@ export async function toggleImage(
 }
 
 export async function reorderImages(
-  items: { id: number; sort_order: number }[]
+  items: { id: number; sort_order: number }[], profileId = 1
 ): Promise<void> {
-  const res = await fetch(`${API_BASE}/images/reorder`, {
+  const res = await fetch(scoped(`${API_BASE}/images/reorder`, profileId), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(items),
@@ -234,9 +254,9 @@ export async function reorderImages(
 }
 
 export async function realignImage(
-  id: number
+  id: number, profileId = 1
 ): Promise<{ id: number; face_detected: boolean; error: string | null; needs_face_selection: boolean }> {
-  const res = await fetch(`${API_BASE}/images/${id}/realign`, {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}/realign`, profileId), {
     method: "POST",
   });
   if (!res.ok) {
@@ -246,8 +266,8 @@ export async function realignImage(
   return res.json();
 }
 
-export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
-  const res = await fetch(`${API_BASE}/images/no-face`, { method: "DELETE" });
+export async function deleteNoFaceImages(profileId = 1): Promise<{ deleted: number }> {
+  const res = await fetch(scoped(`${API_BASE}/images/no-face`, profileId), { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete no-face images");
   return res.json();
 }
@@ -266,7 +286,8 @@ const VIDEO_TIMEOUT_MS = 15 * 60 * 1000;
 
 async function readError(res: Response, fallback: string): Promise<Error> {
   const data = await res.json().catch(() => ({}));
-  const errorMsg: string = data.detail || fallback;
+  const errorMsg: string = typeof data.detail === "string" ? data.detail
+    : Array.isArray(data.detail) ? data.detail.map((d: { msg: string }) => d.msg).join(". ") : fallback;
   // Provide more helpful error message if FFmpeg is not found
   if (errorMsg.includes("FFmpeg not found") || errorMsg.includes("ffmpeg")) {
     return new Error("Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).");
@@ -284,7 +305,8 @@ export async function generateVideo(
   showDates: boolean = false,
   birthday: string | null = null,
   showAge: boolean = false,
-  onProgress?: (job: VideoJob) => void
+  onProgress?: (job: VideoJob) => void,
+  profileId = 1
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
@@ -295,7 +317,7 @@ export async function generateVideo(
     params.append("birthday", birthday);
   }
   const res = await fetch(
-    `${API_BASE}/video/generate?${params.toString()}`,
+    scoped(`${API_BASE}/video/generate?${params.toString()}`, profileId),
     { method: "POST" }
   );
   if (!res.ok) throw await readError(res, "Video generation failed");
@@ -306,7 +328,7 @@ export async function generateVideo(
   while (job.status === "running") {
     if (Date.now() > deadline) throw new Error("Video generation timed out");
     await new Promise((r) => setTimeout(r, VIDEO_POLL_MS));
-    const poll = await fetch(`${API_BASE}/video/jobs/${job.job_id}`);
+    const poll = await fetch(scoped(`${API_BASE}/video/jobs/${job.job_id}`, profileId));
     if (!poll.ok) throw await readError(poll, "Lost track of video generation");
     job = await poll.json();
     onProgress?.(job);
@@ -333,20 +355,20 @@ export type ImageSize = "thumb" | "frame" | "full";
 
 // Image responses are cached for a year, so the URL must change with the
 // content: IDs can be reused after a delete. `version` is the content hash.
-function imageUrl(id: number, kind: "aligned" | "original", version?: string, size: ImageSize = "full"): string {
+function imageUrl(id: number, kind: "aligned" | "original", version?: string, size: ImageSize = "full", profileId = 1): string {
   const params = new URLSearchParams();
   if (version) params.set("v", version);
   if (size !== "full") params.set("size", size);
   const qs = params.toString();
-  return `${API_BASE}/images/${id}/${kind}${qs ? `?${qs}` : ""}`;
+  return scoped(`${API_BASE}/images/${id}/${kind}${qs ? `?${qs}` : ""}`, profileId);
 }
 
-export function getAlignedImageUrl(id: number, version?: string, size: ImageSize = "full"): string {
-  return imageUrl(id, "aligned", version, size);
+export function getAlignedImageUrl(id: number, version?: string, size: ImageSize = "full", profileId = 1): string {
+  return imageUrl(id, "aligned", version, size, profileId);
 }
 
-export function getOriginalImageUrl(id: number, version?: string, size: ImageSize = "full"): string {
-  return imageUrl(id, "original", version, size);
+export function getOriginalImageUrl(id: number, version?: string, size: ImageSize = "full", profileId = 1): string {
+  return imageUrl(id, "original", version, size, profileId);
 }
 
 export interface FaceCandidate {
@@ -361,8 +383,8 @@ export interface FaceChoices {
   content_hash: string;
 }
 
-export async function discoverFaces(id: number): Promise<FaceChoices> {
-  const res = await fetch(`${API_BASE}/images/${id}/faces`, { method: "POST" });
+export async function discoverFaces(id: number, profileId = 1): Promise<FaceChoices> {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}/faces`, profileId), { method: "POST" });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail || "Could not find faces. Please try again.");
@@ -370,8 +392,8 @@ export async function discoverFaces(id: number): Promise<FaceChoices> {
   return res.json();
 }
 
-export async function selectFace(id: number, faceIndex: number): Promise<void> {
-  const res = await fetch(`${API_BASE}/images/${id}/select-face`, {
+export async function selectFace(id: number, faceIndex: number, profileId = 1): Promise<void> {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}/select-face`, profileId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ face_index: faceIndex }),
@@ -380,4 +402,25 @@ export async function selectFace(id: number, faceIndex: number): Promise<void> {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.detail || "Could not align that face. Please try again.");
   }
+}
+
+/** Bound to one person for the lifetime of a workspace and any async work it starts. */
+export function createProfileApi(profileId: number) {
+  return {
+    listImages: () => listImages(profileId),
+    uploadImages: (files: File[], progress?: (p: UploadProgress) => void) => uploadImages(files, progress, profileId),
+    alignImages: (ids: number[], progress?: (p: AlignProgress) => void) => alignImages(ids, progress, profileId),
+    deleteImage: (id: number) => deleteImage(id, profileId),
+    toggleImage: (id: number) => toggleImage(id, profileId),
+    reorderImages: (items: { id: number; sort_order: number }[]) => reorderImages(items, profileId),
+    realignImage: (id: number) => realignImage(id, profileId),
+    deleteNoFaceImages: () => deleteNoFaceImages(profileId),
+    discoverFaces: (id: number) => discoverFaces(id, profileId),
+    selectFace: (id: number, faceIndex: number) => selectFace(id, faceIndex, profileId),
+    getAlignedImageUrl: (id: number, version?: string, size: ImageSize = "full") => getAlignedImageUrl(id, version, size, profileId),
+    getOriginalImageUrl: (id: number, version?: string, size: ImageSize = "full") => getOriginalImageUrl(id, version, size, profileId),
+    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void) =>
+      generateVideo(duration, dates, birthday, age, progress, profileId),
+    getVideoUrl: (filename: string) => scoped(`${API_BASE}/video/${encodeURIComponent(filename)}`, profileId),
+  };
 }

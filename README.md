@@ -78,3 +78,9 @@ All data is stored in the `data/` directory (git-ignored):
 ## Tests
 
 `make test-backend` runs the detector/API/migration regression tests with a temporary database. `make test-e2e` runs the browser suite with isolated data. `cd frontend && npm run build` checks TypeScript and the production bundle. `make install` includes test dependencies; the production Docker image uses only runtime requirements.
+
+## People
+
+Use **Add person** beside the person tabs to start another library. Each person has separate uploads, face choices, ordering, birthday and exports under your existing login. **Edit person** changes their name or optional birthday. The selected tab is remembered on each device; unfinished uploads return to that person's staging tray.
+
+Existing photos stay in **Ryan** when migration 008 runs. The migration adds ownership in SQLite without moving photo files. Backups include every person's data automatically. Profiles are collections for the same owner, not separate user accounts.

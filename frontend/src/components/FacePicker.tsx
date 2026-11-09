@@ -1,11 +1,13 @@
+import { useProfileApi } from "../ProfileContext";
 import { useEffect, useRef, useState } from "react";
-import { deleteImage, discoverFaces, FaceChoices, getOriginalImageUrl, ImageRecord, selectFace } from "../api";
+import { FaceChoices, ImageRecord } from "../api";
 import { Button, IconButton } from "./ui/Button";
 import s from "./FacePicker.module.css";
 
 export function FaceReview({ images, onChoose, onRefresh }: {
   images: ImageRecord[]; onChoose: (id: number) => void; onRefresh: () => void;
 }) {
+  const { deleteImage, getOriginalImageUrl } = useProfileApi();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const remove = async (id: number) => {
@@ -50,6 +52,7 @@ export function FaceReview({ images, onChoose, onRefresh }: {
 export default function FacePicker({ imageId, onClose, onSaved }: {
   imageId: number; onClose: () => void; onSaved: () => void;
 }) {
+  const { discoverFaces, getOriginalImageUrl, selectFace } = useProfileApi();
   const dialog = useRef<HTMLDialogElement>(null);
   const [choices, setChoices] = useState<FaceChoices | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
