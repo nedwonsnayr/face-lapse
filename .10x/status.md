@@ -34,3 +34,6 @@ Scope accepted: manual selection per photo, one timeline, persistent review queu
 
 ## manual-face-selection: Design
 ADR-004 and component/schema decisions written. Proceed with the user-approved workflow.
+
+## manual-face-selection: Planning
+Implementation tasks ready. Work in isolated checkout with throwaway data; source repository receives reviewed committed changes after verification.
