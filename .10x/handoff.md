@@ -63,3 +63,6 @@ Ready to implement bounded search. Source repository and real library data remai
 
 ## crop-search-fallback — Implementation Complete
 Bounded crop search and original-coordinate mapping added. Public padded regression fixture; supplied HEIC yields two faces locally. Verify all suites and render original alignment outputs. No private image committed; no deployment performed.
+
+## styled-video-export — Brainstorming
+User-provided screenshot is the accepted visual design; four independent visibility combinations explicit. Spec self-reviewed before implementation.

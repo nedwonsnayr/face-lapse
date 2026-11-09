@@ -1,0 +1,9 @@
+# Styled video export and independent date/age
+
+Approved visual reference and behavior supplied by user on 2026-11-09: exported video must match the screenshot's framed photo, paper background, centered italic date and red uppercase age. Date and age may each be on/off independently, giving four combinations. No playback controls, frame counter or app UI are burned into the video.
+
+Render a consistent 1200x1800 portrait artboard: off-white paper, dark 3:4 mat and photo, subtle shadow, Fraunces italic date and Inter semibold tracked red age beneath. Hide each caption independently and keep frame dimensions stable across all combinations. Bundle static font instances converted from existing licensed font packages, with OFL notices. Originals/aligned images remain unchanged.
+
+Explicit show_dates and show_age flags travel UI → API → background job → renderer. Age still uses the photo's calendar date internally even when its date caption is hidden. Birthday is required/validated when age is enabled; preview uses calendar dates consistently with the server. Render failures fail export instead of silently falling back to an unstyled frame. Each export gets a unique filename to isolate settings/jobs. All frames are rendered into a temporary sequence with explicit rational input frame rate so the exported duration matches the selected playback speed. Existing output download naming stays unchanged.
+
+Validation: all four preview/control/API/export combinations; exact example August 19, 2020 / AGE 24; birthday boundary and missing/invalid input; rendered and decoded-MP4 frames show paper/mat/caption colors in the right regions; output dimensions/timing; unique filenames; source/metadata immutability; full backend/browser/build checks. Keep pending crop-search fix in the current draft PR and update its description for the combined scope. No deployment without a subsequent merge step.
