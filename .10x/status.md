@@ -1,3 +1,10 @@
+# Export performance — implemented and locally verified
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/21 (draft).
+Local verification: 29 backend tests, 49 Chromium tests, production build and whitespace checks passed. Actual ARM host public-fixture benchmark: 16.320s baseline to 8.705s optimized (60 frames, 46.7% less time); four caption modes pixel-identical. Personal library and hosted application were not changed.
+
+GitHub run 42683956228 remains in Install FFmpeg dependency setup; it has not reached regression tests as of the handoff. CI success must not be claimed. No merge or deployment performed. Review/merge and hosted rollout remain pending. Implementation and operational design are in ADR-007, export-performance role notes and reviews/2026-11-09-export-performance-*.md. Keep one application process; reuse is bounded and process-local.
+
 # Export performance — verified, preparing pull request
 
 29 backend / 49 browser tests and build passed. ARM public-fixture full export 46.7% faster with pixel-identical frames. Static artwork/font reuse, bounded matching-job reuse, single-job admission, progress and phase timing. No deployment yet. Reports: reviews/2026-11-09-export-performance-*.md. ADR-007.
