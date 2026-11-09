@@ -1,3 +1,7 @@
+# Export performance — design and planning complete
+
+ADR-007 and spec recorded before implementation. User authorized applying discussed improvements. Benchmark and implement renderer reuse, bounded job reuse and progress, then verify.
+
 # Current status — styled-video-export
 Date: 2026-11-09
 Phase: Verification Complete; ready for review. Hosted app not updated.

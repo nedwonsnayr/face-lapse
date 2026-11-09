@@ -10,3 +10,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: bounded crop fallback; see [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: screenshot-matched export with independent captions.
+
+- export-performance: Keep API polling contract, add optional phase/completed/total fields. Snapshot job responses under lock. Preserve existing outputs and download links. No deletion of old user exports.

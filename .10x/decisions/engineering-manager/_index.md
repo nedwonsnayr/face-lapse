@@ -6,3 +6,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: bounded crop fallback; see [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: screenshot-matched export with independent captions.
+
+- export-performance: Sequence: benchmark baseline; renderer reuse/profiling; job dedup/admission; progress UI; unit/API/browser regression; compare benchmark and prepare PR.

@@ -7,3 +7,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: bounded crop fallback; see [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: screenshot-matched export with independent captions.
+
+- export-performance: Verify pixel equality with old renderer. Hash normalized ordered metadata plus path stat/revision; validate input signature again after encoding to avoid reusing results from concurrently changed sources. Failed/missing outputs never reused. Keep existing FFmpeg preset and JPEG settings.

@@ -1,3 +1,7 @@
+# Export performance — design and planning complete
+
+ADR-007 and spec recorded before implementation. User authorized applying discussed improvements. Benchmark and implement renderer reuse, bounded job reuse and progress, then verify.
+
 # Current handoff — styled-video-export
 
 Ready for review on codex/styled-video-export; crop-search PR #19 is already merged. Exports now compose paper, dark mat/shadow, italic date and red tracked age below the photo, with no UI controls. Date/age independently selectable; birthday required only for age. Both flags propagate through api.ts, router, background job and renderer. Static licensed font assets copied by current Dockerfile. Output 1200x1800; aligned sources unchanged. Explicit sequence cadence and UUID filenames keep speed/options correct.
