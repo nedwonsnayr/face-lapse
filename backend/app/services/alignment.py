@@ -1,9 +1,11 @@
 """Face alignment service using MediaPipe Face Mesh and OpenCV."""
 
 import logging
+import os
+import tempfile
 import math
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -42,6 +44,8 @@ class AlignmentResult:
     left_eye: tuple[float, float] | None = None
     right_eye: tuple[float, float] | None = None
     error: str | None = None
+    faces: list[dict] = field(default_factory=list)
+    needs_face_selection: bool = False
 
 
 def extract_exif_date(image_path: str) -> str | None:
@@ -137,65 +141,69 @@ def _load_image_with_exif(input_path: str) -> np.ndarray | None:
 
 def _detect_face_landmarks(rgb: np.ndarray, min_confidence: float = 0.3):
     """
-    Run MediaPipe Face Mesh on an RGB image. Returns landmarks or None.
+    Run MediaPipe Face Mesh on an RGB image. Return one landmark list per face.
     """
     mp_face_mesh = mp.solutions.face_mesh
     with mp_face_mesh.FaceMesh(
         static_image_mode=True,
-        max_num_faces=1,
+        max_num_faces=10,
         refine_landmarks=True,
         min_detection_confidence=min_confidence,
     ) as face_mesh:
         results = face_mesh.process(rgb)
 
     if results.multi_face_landmarks:
-        return results.multi_face_landmarks[0].landmark
-    return None
+        return [face.landmark for face in results.multi_face_landmarks]
+    return []
 
 
-def align_image(input_path: str, output_path: str) -> AlignmentResult:
-    """
-    Detect face landmarks, compute affine transform, and save aligned image.
+def detect_faces(input_path: str) -> list[dict]:
+    """Normalized geometry in the EXIF-oriented original; sorted left to right."""
+    img = _load_image_with_exif(input_path)
+    if img is None:
+        return []
+    return _faces_in_image(img)
 
-    Pipeline:
-    1. Load image with EXIF rotation applied (fixes sideways iPhone photos).
-    2. Attempt face detection at original resolution (confidence 0.3).
-    3. If that fails and image is large, retry on a downscaled copy.
-    4. Map detected landmarks back to original coordinates, align, and save.
-    """
-    # Step 1: Load with EXIF rotation
+
+def _faces_in_image(img: np.ndarray) -> list[dict]:
+    h, w = img.shape[:2]
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    landmarks = _detect_face_landmarks(rgb)
+    if not landmarks and max(w, h) > _MAX_DETECT_DIM:
+        scale = _MAX_DETECT_DIM / max(w, h)
+        small = cv2.resize(rgb, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        landmarks = _detect_face_landmarks(small, min_confidence=0.2)
+    faces = []
+    for points in landmarks:
+        x0 = max(0.0, min(p.x for p in points))
+        y0 = max(0.0, min(p.y for p in points))
+        x1 = min(1.0, max(p.x for p in points))
+        y1 = min(1.0, max(p.y for p in points))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        faces.append({
+            "bounds": {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0},
+            "left_eye": list(_get_eye_center(points, LEFT_EYE_INDICES, 1, 1)),
+            "right_eye": list(_get_eye_center(points, RIGHT_EYE_INDICES, 1, 1)),
+        })
+    return sorted(faces, key=lambda face: face["bounds"]["x"])
+
+
+def align_image(input_path: str, output_path: str, selected_face: dict | None = None) -> AlignmentResult:
+    """Align a stored choice, or auto-align only when detection finds one face."""
     img = _load_image_with_exif(input_path)
     if img is None:
         return AlignmentResult(success=False, error="Could not read image file")
-
     h, w = img.shape[:2]
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Step 2: Detect at original resolution
-    landmarks = _detect_face_landmarks(rgb, min_confidence=0.3)
-    detect_scale = 1.0
-
-    # Step 3: If failed and image is large, retry on a downscaled copy
-    if landmarks is None and max(w, h) > _MAX_DETECT_DIM:
-        detect_scale = _MAX_DETECT_DIM / max(w, h)
-        small_rgb = cv2.resize(rgb, None, fx=detect_scale, fy=detect_scale, interpolation=cv2.INTER_AREA)
-        landmarks = _detect_face_landmarks(small_rgb, min_confidence=0.2)
-        if landmarks:
-            log.info("    face found after downscale to %dx%d", small_rgb.shape[1], small_rgb.shape[0])
-
-    if landmarks is None:
-        return AlignmentResult(success=False, error="No face detected")
-
-    # Step 4: Map landmark coords back to original image space
-    lm_w = int(w * detect_scale)
-    lm_h = int(h * detect_scale)
-    left_eye = _get_eye_center(landmarks, LEFT_EYE_INDICES, lm_w, lm_h)
-    right_eye = _get_eye_center(landmarks, RIGHT_EYE_INDICES, lm_w, lm_h)
-
-    # Scale back to original resolution if we downscaled for detection
-    if detect_scale != 1.0:
-        left_eye = (left_eye[0] / detect_scale, left_eye[1] / detect_scale)
-        right_eye = (right_eye[0] / detect_scale, right_eye[1] / detect_scale)
+    faces = [] if selected_face is not None else _faces_in_image(img)
+    if selected_face is None:
+        if not faces:
+            return AlignmentResult(success=False, error="No face detected")
+        if len(faces) > 1:
+            return AlignmentResult(success=False, faces=faces, needs_face_selection=True)
+        selected_face = faces[0]
+    left_eye = (selected_face["left_eye"][0] * w, selected_face["left_eye"][1] * h)
+    right_eye = (selected_face["right_eye"][0] * w, selected_face["right_eye"][1] * h)
 
     # Compute the affine transform
     dx = right_eye[0] - left_eye[0]
@@ -228,11 +236,19 @@ def align_image(input_path: str, output_path: str) -> AlignmentResult:
     )
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(output_path, aligned, [cv2.IMWRITE_JPEG_QUALITY, 95])
+    fd, temp_path = tempfile.mkstemp(suffix=".jpg", dir=Path(output_path).parent)
+    os.close(fd)
+    try:
+        if not cv2.imwrite(temp_path, aligned, [cv2.IMWRITE_JPEG_QUALITY, 95]):
+            return AlignmentResult(success=False, error="Could not save aligned image")
+        os.replace(temp_path, output_path)
+    finally:
+        Path(temp_path).unlink(missing_ok=True)
 
     return AlignmentResult(
         success=True,
         aligned_path=output_path,
         left_eye=left_eye,
         right_eye=right_eye,
+        faces=faces,
     )

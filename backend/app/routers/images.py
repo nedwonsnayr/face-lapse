@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Generator, List
@@ -13,14 +14,14 @@ log = logging.getLogger("face-lapse.images")
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database import get_db, SessionLocal, Base, engine
 from ..models import Image
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
 from ..services.ordering import library_order
-from ..services.alignment import align_image, extract_exif_date, parse_date_from_filename
+from ..services.alignment import align_image, detect_faces, extract_exif_date, parse_date_from_filename
 from ..utils.date_interpolation import interpolate_and_store_dates
 from ..services import resize
 
@@ -296,6 +297,33 @@ async def upload_images(
     return results
 
 
+def _align_record(image: Image, selected_index: int | None = None):
+    """One persistence path for batch alignment, saved choices and realignment."""
+    index = selected_index if selected_index is not None else image.selected_face_index
+    candidates = image.face_candidates or []
+    selected = candidates[index] if index is not None and 0 <= index < len(candidates) else None
+    aligned_path = ALIGNED_DIR / f"{Path(image.original_filename).stem}.jpg"
+    result = align_image(image.original_path, str(aligned_path), selected_face=selected)
+    if result.faces:
+        image.face_candidates = result.faces
+        image.selected_face_index = 0 if result.success else None
+    elif result.success:
+        image.selected_face_index = index
+    image.needs_face_selection = result.needs_face_selection
+    image.aligned_path = str(aligned_path) if result.success else None
+    image.left_eye_x = result.left_eye[0] if result.left_eye else None
+    image.left_eye_y = result.left_eye[1] if result.left_eye else None
+    image.right_eye_x = result.right_eye[0] if result.right_eye else None
+    image.right_eye_y = result.right_eye[1] if result.right_eye else None
+    image.face_detected = result.success
+    image.included_in_video = result.success
+    image.align_attempted = True
+    if result.success:
+        image.alignment_version = uuid.uuid4().hex[:12]
+    resize.purge(image.id)
+    return result
+
+
 def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
     """
     Generator that aligns each image and yields NDJSON progress lines.
@@ -323,31 +351,20 @@ def _align_images_stream(image_ids: list[int]) -> Generator[str, None, None]:
                 yield json.dumps({"type": "progress", "current": idx + 1, "total": total, "result": item_result}) + "\n"
                 continue
 
-            stem = Path(image.original_filename).stem
-            aligned_path = ALIGNED_DIR / f"{stem}.jpg"
-            result = align_image(str(image.original_path), str(aligned_path))
-
-            elapsed = time.time() - t0
-            status = "OK" if result.success else f"FAIL ({result.error})"
-            log.info(
-                "  [%d/%d] %s  %.1fs  %s",
-                idx + 1, total, image.original_filename, elapsed, status,
-            )
-
-            image.aligned_path = str(aligned_path) if result.success else None
-            image.left_eye_x = result.left_eye[0] if result.left_eye else None
-            image.left_eye_y = result.left_eye[1] if result.left_eye else None
-            image.right_eye_x = result.right_eye[0] if result.right_eye else None
-            image.right_eye_y = result.right_eye[1] if result.right_eye else None
-            image.face_detected = result.success
-            image.included_in_video = result.success
-            image.align_attempted = True
+            result = _align_record(image)
+            # Persist this photo before progress is sent: closing the tab must
+            # not lose completed detections or a pending face choice.
+            db.commit()
+            log.info("  [%d/%d] %s %.1fs %s", idx + 1, total,
+                     image.original_filename, time.time() - t0,
+                     "choose face" if result.needs_face_selection else result.success)
 
             item_result = {
                 "id": image.id,
                 "original_filename": image.original_filename,
                 "face_detected": result.success,
                 "error": result.error,
+                "needs_face_selection": image.needs_face_selection,
                 "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
             }
             log.info("Align: returning result for image_id=%d -> result.id=%d, filename=%s", image_id, item_result["id"], item_result["original_filename"])
@@ -395,7 +412,7 @@ def align_images(body: AlignRequest):
 def _content_version(img: Image) -> str:
     """Cache key for an image's URLs. IDs can be reused after a delete (SQLite
     reuses the highest rowid), so the URL must also change with the content."""
-    return (img.file_hash or f"id{img.id}")[:12]
+    return f"{(img.file_hash or f'id{img.id}')[:12]}-{img.alignment_version or '0'}"
 
 
 @router.get("")
@@ -415,6 +432,8 @@ def list_images(request: Request, db: Session = Depends(get_db)):
             "has_aligned": img.aligned_path is not None,
             "sort_order": img.sort_order,
             "pending": not img.align_attempted,
+            "needs_face_selection": img.needs_face_selection,
+            "selected_face_index": img.selected_face_index,
             "content_hash": _content_version(img),
         }
         for img in images
@@ -468,7 +487,7 @@ def delete_no_face_images(db: Session = Depends(get_db)):
     # another device) also have face_detected=False and must not be deleted.
     images = (
         db.query(Image)
-        .filter(Image.face_detected == False, Image.align_attempted == True)  # noqa: E712
+        .filter(Image.face_detected == False, Image.align_attempted == True, Image.needs_face_selection == False)  # noqa: E712
         .all()
     )
     deleted_count = 0
@@ -497,7 +516,8 @@ _IMAGE_CACHE = {"Cache-Control": "private, max-age=31536000, immutable"}
 def _serve(image: Image, source: Path, size: str, media_type: str | None = None) -> FileResponse:
     if size == "full":
         return FileResponse(source, media_type=media_type, headers=_IMAGE_CACHE)
-    path = resize.resized_path(source, image.id, _content_version(image), size)
+    kind = "original" if source == Path(image.original_path) else "aligned"
+    path = resize.resized_path(source, image.id, _content_version(image), size, kind)
     return FileResponse(path, media_type="image/jpeg", headers=_IMAGE_CACHE)
 
 
@@ -566,19 +586,7 @@ def realign_image(image_id: int, db: Session = Depends(get_db)):
     if not Path(image.original_path).exists():
         raise HTTPException(status_code=404, detail="Original image not found on disk")
 
-    stem = Path(image.original_filename).stem
-    aligned_path = ALIGNED_DIR / f"{stem}.jpg"
-    result = align_image(str(image.original_path), str(aligned_path))
-    resize.purge(image_id)  # the aligned file was rewritten
-
-    image.aligned_path = str(aligned_path) if result.success else None
-    image.left_eye_x = result.left_eye[0] if result.left_eye else None
-    image.left_eye_y = result.left_eye[1] if result.left_eye else None
-    image.right_eye_x = result.right_eye[0] if result.right_eye else None
-    image.right_eye_y = result.right_eye[1] if result.right_eye else None
-    image.face_detected = result.success
-    image.included_in_video = result.success
-    image.align_attempted = True
+    result = _align_record(image)
     db.commit()
 
     log.info("Re-aligned image %d (%s): %s", image_id, image.original_filename,
@@ -589,4 +597,45 @@ def realign_image(image_id: int, db: Session = Depends(get_db)):
         "original_filename": image.original_filename,
         "face_detected": result.success,
         "error": result.error,
+        "needs_face_selection": image.needs_face_selection,
     }
+
+
+@router.post("/{image_id}/faces")
+def discover_faces(image_id: int, db: Session = Depends(get_db)):
+    """Return stable candidates for the picker; keep an existing alignment until confirmed."""
+    image = db.get(Image, image_id)
+    if not image or not Path(image.original_path).is_file():
+        raise HTTPException(status_code=404, detail="Original image not found")
+    if not image.face_candidates:
+        image.face_candidates = detect_faces(image.original_path)
+        if len(image.face_candidates) > 1 and not image.aligned_path:
+            image.needs_face_selection = True
+            image.included_in_video = False
+            image.align_attempted = True
+        db.commit()
+    return {
+        "faces": image.face_candidates or [],
+        "selected_face_index": image.selected_face_index,
+        "content_hash": _content_version(image),
+    }
+
+
+class FaceSelection(BaseModel):
+    face_index: int = Field(ge=0, strict=True)
+
+
+@router.post("/{image_id}/select-face")
+def select_face(image_id: int, body: FaceSelection, db: Session = Depends(get_db)):
+    image = db.get(Image, image_id)
+    if not image or not Path(image.original_path).is_file():
+        raise HTTPException(status_code=404, detail="Original image not found")
+    if body.face_index >= len(image.face_candidates or []):
+        raise HTTPException(status_code=400, detail="That face is not available. Reopen the face picker.")
+    result = _align_record(image, selected_index=body.face_index)
+    if not result.success:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=result.error or "Could not align the selected face")
+    db.commit()
+    return {"id": image.id, "selected_face_index": image.selected_face_index,
+            "content_hash": _content_version(image)}

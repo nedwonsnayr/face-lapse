@@ -3,3 +3,5 @@
 - ui-revamp: no schema or query changes.
 - cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)
 - library-sync: migration 005, see [library-sync](library-sync.md)
+
+- manual-face-selection: [manual-face-selection](manual-face-selection.md) — one timelapse, manual face choice.

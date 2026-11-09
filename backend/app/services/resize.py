@@ -2,7 +2,7 @@
 
 Aligned images are 1200x1600 (~450 KB). The library shows them ~130 px wide and
 the player at phone size, so serving full size costs mobile users ~20x the bytes.
-Copies live in THUMBS_DIR, are named by image id + content hash + size (so a
+Copies live in THUMBS_DIR, are named by image id + content version + source kind + size (so a
 reused id or new content never hits a stale file), and can be deleted at any
 time — they're regenerated on demand and excluded from backups.
 """
@@ -27,10 +27,10 @@ SIZES = {
 }
 
 
-def resized_path(source: Path, image_id: int, version: str, size: str) -> Path:
+def resized_path(source: Path, image_id: int, version: str, size: str, kind: str) -> Path:
     """Return the cached resized copy of `source`, creating it if needed."""
     max_w, max_h, quality = SIZES[size]
-    target = THUMBS_DIR / f"{image_id}-{version}-{size}.jpg"
+    target = THUMBS_DIR / f"{image_id}-{version}-{kind}-{size}.jpg"
     if target.exists():
         return target
 

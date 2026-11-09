@@ -36,6 +36,7 @@ interface ImageLibraryProps {
   images: ImageRecord[];
   recentUploadIds: Set<number>;
   onRefresh: () => void;
+  onChooseFace: (id: number) => void;
   onDismissRecent: () => void;
   /** Told when a drag-to-reorder starts/ends, so background refreshes can wait. */
   onDraggingChange?: (dragging: boolean) => void;
@@ -89,6 +90,7 @@ interface CardActionsProps {
   onDelete: (id: number) => void;
   onToggle: (id: number) => void;
   onRealign: (id: number) => void;
+  onChooseFace: (id: number) => void;
 }
 
 /*
@@ -99,7 +101,7 @@ interface CardActionsProps {
  */
 
 /** Thumbnail, hover actions, date and include toggle. Shared by sortable and static grids. */
-const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign }: CardActionsProps) {
+const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
   const date = formatCardDate(img.photo_taken_at);
   const isRealigning = realigningId === img.id;
   const isDeleting = deletingId === img.id;
@@ -123,7 +125,7 @@ const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelet
         )}
 
         <div className={cx(s.hoverActions, (isRealigning || isDeleting) && s.hoverActionsBusy)}>
-          <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign }} variant="overlay" />
+          <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign, onChooseFace }} variant="overlay" />
         </div>
       </div>
 
@@ -144,14 +146,24 @@ function PhotoActions({
   realigningId,
   onDelete,
   onRealign,
+  onChooseFace,
   variant,
-}: Pick<CardActionsProps, "img" | "deletingId" | "realigningId" | "onDelete" | "onRealign"> & {
+}: Pick<CardActionsProps, "img" | "deletingId" | "realigningId" | "onDelete" | "onRealign" | "onChooseFace"> & {
   variant: "overlay" | "plain";
 }) {
   const isRealigning = realigningId === img.id;
   const isDeleting = deletingId === img.id;
   return (
     <>
+      <IconButton
+        data-testid={`change-face-button-${img.id}`}
+        icon="eye"
+        label="Change face"
+        variant={variant}
+        size="sm"
+        onClick={() => onChooseFace(img.id)}
+        disabled={isRealigning || isDeleting}
+      />
       <IconButton
         data-testid={`realign-button-${img.id}`}
         icon="rotate"
@@ -193,7 +205,7 @@ function IncludeChip({ img, onToggle }: { img: ImageRecord; onToggle: (id: numbe
 }
 
 /** One row in list view: thumbnail, full date, source filename, and always-visible controls. */
-const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign }: CardActionsProps) {
+const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
   const date = formatRowDate(img.photo_taken_at);
   return (
     <>
@@ -217,7 +229,7 @@ const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete,
       </div>
       {img.has_aligned && <IncludeChip img={img} onToggle={onToggle} />}
       <div className={s.rowActions}>
-        <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign }} variant="plain" />
+        <PhotoActions {...{ img, deletingId, realigningId, onDelete, onRealign, onChooseFace }} variant="plain" />
       </div>
     </>
   );
@@ -297,6 +309,7 @@ export default function ImageLibrary({
   images,
   recentUploadIds,
   onRefresh,
+  onChooseFace,
   onDismissRecent,
   onDraggingChange,
 }: ImageLibraryProps) {
@@ -358,8 +371,9 @@ export default function ImageLibrary({
   const handleRealign = useStableCallback(async (id: number) => {
     setRealigningId(id);
     try {
-      await realignImage(id);
+      const result = await realignImage(id);
       onRefresh();
+      if (result.needs_face_selection) onChooseFace(id);
     } catch (err) {
       console.error("Re-align failed:", err);
     } finally {
@@ -457,6 +471,7 @@ export default function ImageLibrary({
     onDelete: handleDelete,
     onToggle: handleToggle,
     onRealign: handleRealign,
+    onChooseFace,
   };
 
   const renderSortableGrid = (list: ImageRecord[], enableDrag: boolean = true, testIdPrefix: string = "image-card") => {

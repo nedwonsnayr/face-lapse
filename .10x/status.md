@@ -1,3 +1,15 @@
+# Current status — manual-face-selection
+Date: 2026-11-09
+Phase: Deployment in progress — merge/deploy authorized by owner on 2026-11-09.
+
+- Approved: one timelapse centered on owner, manual face choice for group photos.
+- Done: ADR-004/spec/plan, detector and additive migration 007, saved selection API, reload-safe queue/picker, Change face, fresh rendition cache, regressions and CI integration.
+- Validation: backend 9/9, Chromium 41/41 (28.9s), production frontend build and diff checks passed.
+- Reports: `reviews/2026-11-09-face-selection-qa-report.md` and `reviews/2026-11-09-face-selection-security-review.md`.
+- Delivery: reviewed commits delivered to `codex/manual-face-selection` in the original repository; working tree clean. No production data touched during verification.
+
+## Previous status history
+
 # Status
 **Feature:** cloud-hosting (branch `cloud-hosting`, cut from `ui-revamp`; not pushed)
 **Phase:** cloud-hosting delivered; library-sync in PR
@@ -22,3 +34,23 @@ Open:
 
 ## library-sync (2026-11-05)
 Auto-refresh, new photos shown in both groups, staged uploads hidden and safe from Dismiss All, content-hash image URLs. e2e 32/32. In a PR.
+
+## app-analysis (2026-11-09)
+Phase: Analysis Complete. Reviewed commit `1498415`; application code unchanged. Build passed; Chromium E2E 38/38 passed. Findings and evidence: `reviews/2026-11-09-app-analysis.md`. Remediation remains unapproved; historical cloud deployment/backup state was not reverified.
+
+## manual-face-selection: Brainstorming
+Approved one-timelapse manual-selection workflow recorded. Spec self-review: no placeholders; automatic identity matching excluded.
+
+## manual-face-selection: Strategy
+Scope accepted: manual selection per photo, one timeline, persistent review queue.
+
+## manual-face-selection: Design
+ADR-004 and component/schema decisions written. Proceed with the user-approved workflow.
+
+## manual-face-selection: Planning
+Implementation tasks ready. Work in isolated checkout with throwaway data; source repository receives reviewed committed changes after verification.
+
+## manual-face-selection — Implementation Complete
+Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.
+
+Hosted check 42660131648 blocked on Playwright/Ubuntu 26.04 incompatibility before tests. Pinned test runner to Ubuntu 24.04; rerun pending.

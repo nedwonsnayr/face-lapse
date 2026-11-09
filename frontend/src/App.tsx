@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FacePicker, { FaceReview } from "./components/FacePicker";
 import Upload, { UploadHandle } from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
 import Timelapse from "./components/Timelapse";
@@ -26,6 +27,7 @@ const REFRESH_MS = 30_000;
 
 export default function App() {
   const [images, setImages] = useState<ImageRecord[]>([]);
+  const [facePickerId, setFacePickerId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentUploadIds, setRecentUploadIds] = useState<Set<number>>(new Set());
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -120,7 +122,7 @@ export default function App() {
 
   // Uploads waiting to be aligned (possibly staged on another device) belong to
   // the upload tray, not the library.
-  const libraryImages = useMemo(() => images.filter((img) => !img.pending), [images]);
+  const libraryImages = useMemo(() => images.filter((img) => !img.pending && !img.needs_face_selection), [images]);
   // Library order (date taken, adjusted by drags) as the server sends it. The
   // library's "Newest first" only flips its own view, never the timelapse.
   const includedImages = useMemo(
@@ -172,6 +174,8 @@ export default function App() {
             />
           </ErrorBoundary>
 
+          <FaceReview images={images.filter((img) => img.needs_face_selection)} onChoose={setFacePickerId} onRefresh={fetchImages} />
+
           {loading ? (
             <p data-testid="loading-message" className={s.loading}>
               Loading library…
@@ -184,6 +188,7 @@ export default function App() {
                 onRefresh={fetchImages}
                 onDismissRecent={handleDismissRecent}
                 onDraggingChange={handleDraggingChange}
+                onChooseFace={setFacePickerId}
               />
             </ErrorBoundary>
           )}
@@ -197,6 +202,14 @@ export default function App() {
           )}
         </aside>
       </main>
+
+      {facePickerId !== null && (
+        <FacePicker
+          imageId={facePickerId}
+          onClose={() => setFacePickerId(null)}
+          onSaved={() => { setFacePickerId(null); fetchImages(); }}
+        />
+      )}
 
       {isDraggingFiles && (
         <div className={s.dropOverlay} aria-hidden="true">

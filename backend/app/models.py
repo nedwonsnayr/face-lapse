@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, JSON
 from .database import Base
 
 def _utcnow():
@@ -27,6 +27,13 @@ class Image(Base):
     # False while an upload is staged and alignment hasn't run yet. Lets the UI
     # tell "waiting to be aligned" apart from "aligned, no face found".
     align_attempted = Column(Boolean, nullable=False, default=False, server_default="0")
+
+    # Geometry belongs to this immutable original; a stored index never relies
+    # on the order of a future detector run.
+    face_candidates = Column(JSON, nullable=True)
+    selected_face_index = Column(Integer, nullable=True)
+    needs_face_selection = Column(Boolean, nullable=False, default=False, server_default="0")
+    alignment_version = Column(String, nullable=False, default="", server_default="")
 
     # Timestamps
     created_at = Column(DateTime, default=_utcnow)

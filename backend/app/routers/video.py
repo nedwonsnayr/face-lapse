@@ -93,7 +93,7 @@ def generate_timelapse(
     # Get all included images with aligned versions
     images = (
         db.query(Image)
-        .filter(Image.included_in_video == True, Image.face_detected == True)  # noqa: E712
+        .filter(Image.included_in_video == True, Image.face_detected == True, Image.needs_face_selection == False)  # noqa: E712
         .all()
     )
 
