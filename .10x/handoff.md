@@ -43,3 +43,6 @@ Supplied full-body couple photo is missed at full-frame scale; same detector fin
 
 ## crop-search-fallback — Brainstorming
 User-approved fallback behavior documented; spec reviewed for scope and ambiguity. No identity matching or original-image edits.
+
+## crop-search-fallback — Strategy
+Scope is a targeted detection fallback after a zero-face result; existing successful detections remain on the fast path.
