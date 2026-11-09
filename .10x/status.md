@@ -25,3 +25,6 @@ Auto-refresh, new photos shown in both groups, staged uploads hidden and safe fr
 
 ## app-analysis (2026-11-09)
 Phase: Analysis Complete. Reviewed commit `1498415`; application code unchanged. Build passed; Chromium E2E 38/38 passed. Findings and evidence: `reviews/2026-11-09-app-analysis.md`. Remediation remains unapproved; historical cloud deployment/backup state was not reverified.
+
+## manual-face-selection: Brainstorming
+Approved one-timelapse manual-selection workflow recorded. Spec self-review: no placeholders; automatic identity matching excluded.
