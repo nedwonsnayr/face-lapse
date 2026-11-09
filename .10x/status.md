@@ -1,4 +1,6 @@
-# Person profiles — locally verified, preparing PR
+# Person profiles — PR #22, ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/22. Local verification complete; GitHub CI pending. No merge/deployment. Final person/keyboard checks 4/4 passed; temporary test servers stopped.
 
 Person tabs, add/edit name and birthday, isolated libraries/capture/face queues/order/exports, safe async switching and pending recovery implemented. Migration 008 retains existing photos under Ryan. Backend 36 passed; Chromium 53 passed; affected upload/person suites 6 passed; build/diff clean. QA/security reports: reviews/2026-11-09-person-profiles-*.md. No deployment or real-library writes.
 
