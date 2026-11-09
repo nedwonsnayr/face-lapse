@@ -538,6 +538,8 @@ def get_aligned_image(image_id: int, size: str = _SIZE_QUERY, db: Session = Depe
         raise HTTPException(status_code=404, detail="Image not found")
     if not image.aligned_path or not Path(image.aligned_path).exists():
         raise HTTPException(status_code=404, detail="Aligned image not available")
+    db.expunge(image)
+    db.close()  # Release before resizing and streaming, including slow clients.
     return _serve(image, Path(image.aligned_path), size, media_type="image/jpeg")
 
 
@@ -550,6 +552,8 @@ def get_original_image(image_id: int, size: str = _SIZE_QUERY, db: Session = Dep
         raise HTTPException(status_code=404, detail="Image not found")
     if not Path(image.original_path).exists():
         raise HTTPException(status_code=404, detail="Original image not found")
+    db.expunge(image)
+    db.close()
     return _serve(image, Path(image.original_path), size)
 
 
