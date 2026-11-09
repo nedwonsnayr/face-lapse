@@ -1,3 +1,7 @@
+# Person profiles — implementation
+
+Approved spec and ADR-008 recorded. Implement scoped backend then keyed frontend workspace and verify with disposable data. No deployment yet.
+
 # Export performance — implemented and locally verified
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/21 (draft).
