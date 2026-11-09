@@ -4,3 +4,5 @@
 
 Active features: [ui-revamp](ui-revamp.md)
 - cloud-hosting: see [cloud-hosting](cloud-hosting.md) (ADR-003)
+
+- manual-face-selection: [manual-face-selection](manual-face-selection.md) — one timelapse, manual face choice.
