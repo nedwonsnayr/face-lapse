@@ -1,3 +1,11 @@
+# Current handoff — crop-search-fallback
+
+Implemented and verified: baseline full/downscaled detector first, then at most nine overlapping half-frame crops, max 1024px per crop, remapped to original normalized eyes/bounds and deduplicated. Existing selection flow unchanged. The supplied personal HEIC works locally; no personal photo pushed or placed in repository. Public padded fixture plus full regression tests pass (backend 15, browser 42, build).
+
+No hosted deployment yet. After installation, retry a failed library photo using Re-run face alignment; multiple recovered faces then appear in Choose your face. No automatic library rewriting, migration or new dependencies. See ADR-005, specs/2026-11-09-crop-search-fallback-design.md and reviews/2026-11-09-crop-search-*.
+
+## Previous handoff history
+
 # Current handoff — manual-face-selection
 
 Merged through PR #18 and deployed at `55a137a`. Live health, migration, record preservation, authentication boundary, frontend bundle and real detector/selection smoke checks passed. Details: `reviews/2026-11-09-face-selection-deployment.md`. Spec: `specs/2026-11-09-manual-face-selection-design.md`; architecture: ADR-004. QA and security reports are under `reviews/2026-11-09-face-selection-*`.

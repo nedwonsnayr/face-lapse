@@ -6,3 +6,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - manual-face-selection: verified for local delivery; see [manual-face-selection](manual-face-selection.md).
 
 - face-detection-distance: supplied-photo failure reproduced; tighter crop detects both foreground faces. Diagnosis only.
+
+- crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).

@@ -1,3 +1,11 @@
+# Current status — crop-search-fallback
+Date: 2026-11-09
+Phase: Verification Complete; ready for local delivery/review. No hosted deployment performed.
+
+Bounded overlapping crop search after full-frame miss; duplicate suppression and original-coordinate geometry verified. Supplied HEIC now finds both foreground faces and aligns either. Tests: backend 15/15, Chromium 42/42 (30.1 s), production build and diff checks passed. Private photo remains local and excluded from git. Reports: reviews/2026-11-09-crop-search-{qa-report,security-review}.md. ADR-005. No migration or dependency changes.
+
+## Previous status history
+
 # Current status — manual-face-selection
 Date: 2026-11-09
 Phase: Hosted Delivery Complete. PR #18 merged and deployed at `55a137a`; live checks passed.

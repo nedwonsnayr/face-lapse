@@ -5,3 +5,5 @@
 - manual-face-selection: verified for local delivery; see [manual-face-selection](manual-face-selection.md).
 
 - manual-face-selection: hosted deployment complete at 55a137a; live verification passed.
+
+- crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).
