@@ -1,6 +1,6 @@
 # Current handoff — styled-video-export
 
-Ready for review with the pending crop-search fix. Exports now compose paper, dark mat/shadow, italic date and red tracked age below the photo, with no UI controls. Date/age independently selectable; birthday required only for age. Both flags propagate through api.ts, router, background job and renderer. Static licensed font assets copied by current Dockerfile. Output 1200x1800; aligned sources unchanged. Explicit sequence cadence and UUID filenames keep speed/options correct.
+Ready for review on codex/styled-video-export; crop-search PR #19 is already merged. Exports now compose paper, dark mat/shadow, italic date and red tracked age below the photo, with no UI controls. Date/age independently selectable; birthday required only for age. Both flags propagate through api.ts, router, background job and renderer. Static licensed font assets copied by current Dockerfile. Output 1200x1800; aligned sources unchanged. Explicit sequence cadence and UUID filenames keep speed/options correct.
 
 Validation: 21 backend, 47 browser tests, production build; actual MP4 captions tested in all four modes. No deployment yet. See ADR-006, specs/2026-11-09-styled-video-export-design.md and reviews/2026-11-09-styled-export-*. No DB migration required.
 

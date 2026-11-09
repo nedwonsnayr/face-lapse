@@ -2,7 +2,7 @@
 Date: 2026-11-09
 Phase: Verification Complete; ready for review. Hosted app not updated.
 
-Screenshot-matched paper/mat/captions rendered into 1200x1800 MP4. Independent date/age in preview and export; calendar birthday handling; bundled licensed matching fonts; unique outputs and exact rational playback cadence. Local checks: backend 21/21, Chromium 47/47 (41.6s), build/diff passed. Decoded media verified for all four combinations. Pending crop-search change remains in the same draft PR. ADR-006 and reviews/2026-11-09-styled-export-*.
+Screenshot-matched paper/mat/captions rendered into 1200x1800 MP4. Independent date/age in preview and export; calendar birthday handling; bundled licensed matching fonts; unique outputs and exact rational playback cadence. Local checks: backend 21/21, Chromium 47/47 (41.6s), build/diff passed. Decoded media verified for all four combinations. Crop-search PR #19 was merged while this feature was developed; styled export is on its own follow-up branch. ADR-006 and reviews/2026-11-09-styled-export-*.
 
 ## Previous status history
 
