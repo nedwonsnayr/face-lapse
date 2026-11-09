@@ -1,7 +1,7 @@
 # Person profiles — QA
 
 - Full backend suite: 36 passed, real face detection (outside filesystem sandbox for macOS graphics service).
-- Full Chromium suite: 53 passed. Subsequent pending-upload refinement: affected person/upload suites 6/6 passed. Final keyboard-focus check recorded at delivery.
+- Full Chromium suite: 53 passed. Subsequent pending-upload refinement: affected person/upload suites 6/6 passed. Final person/keyboard-focus suite: 4/4 passed.
 - Production frontend build and git diff whitespace checks passed.
 - Browser checks: add/edit person, birthday and last-tab persistence, same source in two libraries, actual separate MP4, original library preserved, recovery of staged photos, delayed old-person response ignored, late camera permission stream stopped. Phone screenshot inspected.
 - API checks: all wrong-person image reads/mutations, mixed align/reorder batches, bulk delete, duplicate rules, separate selected faces/files, profile validation, interpolation scope, export input scope, job/file ownership.
