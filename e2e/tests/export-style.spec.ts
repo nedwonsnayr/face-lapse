@@ -55,6 +55,34 @@ test.describe("Styled export and independent captions", () => {
     });
   }
 
+  test("export displays rendering and encoding progress", async ({ page }) => {
+    const job = { job_id: "progress-test", status: "running", frame_count: 100,
+      frame_duration: .05, total_duration: 5, video_filename: null, error: null };
+    await page.route("**/api/video/generate?*", route => route.fulfill({
+      json: { ...job, phase: "rendering", completed_frames: 25 }, status: 202,
+    }));
+    let polls = 0;
+    await page.route("**/api/video/jobs/progress-test", route => route.fulfill({
+      json: ++polls === 1 ? { ...job, phase: "encoding", completed_frames: 100 }
+        : { ...job, status: "error", phase: "error", error: "Test export interrupted" },
+    }));
+    await page.getByTestId("download-video-button").click();
+    await expect(page.getByTestId("export-progress")).toHaveText("Preparing photos 25 of 100…");
+    await expect(page.getByTestId("export-progress")).toHaveText("Encoding video…");
+    await expect(page.getByText("Test export interrupted")).toBeVisible();
+    await expect(page.getByTestId("download-video-button")).toBeEnabled();
+  });
+
+  test("unchanged export reuses the completed video", async ({ page }) => {
+    const endpoint = "/api/video/generate?show_dates=true&show_age=true&birthday=1995-10-06";
+    const first = await (await page.request.post(endpoint)).json();
+    await expect.poll(async () => (await (await page.request.get(`/api/video/jobs/${first.job_id}`)).json()).status).toBe("done");
+    const second = await (await page.request.post(endpoint)).json();
+    expect(second.job_id).toBe(first.job_id);
+    expect(second.status).toBe("done");
+    expect(second.video_filename).toBeTruthy();
+  });
+
   test("birthday picker preserves the chosen calendar day east of UTC", async ({ browser }) => {
     const context = await browser.newContext({ timezoneId: "Pacific/Auckland", baseURL: "http://localhost:5111" });
     try {

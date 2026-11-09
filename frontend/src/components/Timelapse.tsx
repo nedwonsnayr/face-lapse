@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { generateVideo, getAlignedImageUrl, ImageRecord } from "../api";
+import { generateVideo, getAlignedImageUrl, ImageRecord, VideoJob } from "../api";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { Button, IconButton } from "./ui/Button";
@@ -19,6 +19,7 @@ export default function Timelapse({ images }: TimelapseProps) {
   const [frameDuration, setFrameDuration] = useState(0.05);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [exportProgress, setExportProgress] = useState<VideoJob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(true);
@@ -126,9 +127,10 @@ export default function Timelapse({ images }: TimelapseProps) {
 
   const handleDownload = useCallback(async () => {
     setIsGenerating(true);
+    setExportProgress(null);
     setError(null);
     try {
-      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge);
+      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress);
       // Trigger download via a temporary link
       const url = `/api/video/${res.video_filename}`;
       const a = document.createElement("a");
@@ -357,6 +359,13 @@ export default function Timelapse({ images }: TimelapseProps) {
         >
           {isGenerating ? "Generating..." : "Download Video"}
         </Button>
+        {isGenerating && <p role="status" data-testid="export-progress">
+          {exportProgress?.phase === "encoding"
+            ? "Encoding video…"
+            : exportProgress?.phase === "rendering"
+              ? `Preparing photos ${exportProgress.completed_frames ?? 0} of ${exportProgress.frame_count}…`
+              : "Starting export…"}
+        </p>}
 
         {error && (
           <p data-testid="timelapse-error" className={s.error}>

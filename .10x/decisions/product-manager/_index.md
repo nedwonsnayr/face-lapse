@@ -6,3 +6,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: bounded crop fallback; see [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: screenshot-matched export with independent captions.
+
+- export-performance: User authorized deep analysis and application of improvements proposed after the measured 265.2s export. Preserve styling, resolution, caption combinations and cadence; reduce repeated work and show honest progress.

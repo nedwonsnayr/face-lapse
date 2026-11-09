@@ -10,3 +10,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - crop-search-fallback: bounded crop fallback; see [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: screenshot-matched export with independent captions.
+
+- export-performance: Optimize existing Pillow/FFmpeg pipeline; avoid new infrastructure or quality changes.

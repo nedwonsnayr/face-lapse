@@ -1,3 +1,15 @@
+# Export performance — verified, preparing pull request
+
+29 backend / 49 browser tests and build passed. ARM public-fixture full export 46.7% faster with pixel-identical frames. Static artwork/font reuse, bounded matching-job reuse, single-job admission, progress and phase timing. No deployment yet. Reports: reviews/2026-11-09-export-performance-*.md. ADR-007.
+
+# Export performance — implementation complete; verification in progress
+
+45 public-fixture frames: baseline 2.852s, optimized 1.523s; render 1.856s to 0.582s; all four modes pixel-identical. Test invalidation/admission/failure/progress and full regressions.
+
+# Export performance — design and planning complete
+
+ADR-007 and spec recorded before implementation. User authorized applying discussed improvements. Benchmark and implement renderer reuse, bounded job reuse and progress, then verify.
+
 # Current handoff — styled-video-export
 
 Ready for review on codex/styled-video-export; crop-search PR #19 is already merged. Exports now compose paper, dark mat/shadow, italic date and red tracked age below the photo, with no UI controls. Date/age independently selectable; birthday required only for age. Both flags propagate through api.ts, router, background job and renderer. Static licensed font assets copied by current Dockerfile. Output 1200x1800; aligned sources unchanged. Explicit sequence cadence and UUID filenames keep speed/options correct.
@@ -86,3 +98,6 @@ Ready for implementation. Pending crop-search change stays included in this draf
 
 ## styled-video-export — Implementation Complete
 Styled renderer/fonts, independent flags/calendar handling, unique outputs/rational cadence and regression cases implemented. Verify decoded MP4 appearance for all four modes, exact frame count/duration, birthday validation/timezone behavior and full regression suites.
+
+## Styled export performance diagnostic (2026-11-09)
+Live export completed in 265.2s for 1,043 frames / 52.15s playback; observed ~4 CPU cores busy. UI waits for full generation before transfer. See decisions/sre/styled-export-performance.md. No app/production changes made; phase profiling and optimization remain proposed follow-up.

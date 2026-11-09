@@ -252,7 +252,9 @@ export async function deleteNoFaceImages(): Promise<{ deleted: number }> {
   return res.json();
 }
 
-interface VideoJob extends Omit<GenerateResponse, "success" | "video_filename"> {
+export interface VideoJob extends Omit<GenerateResponse, "success" | "video_filename"> {
+  phase?: "rendering" | "encoding" | "done" | "error";
+  completed_frames?: number;
   job_id: string;
   status: "running" | "done" | "error";
   video_filename: string | null;
@@ -281,7 +283,8 @@ export async function generateVideo(
   frameDuration: number,
   showDates: boolean = false,
   birthday: string | null = null,
-  showAge: boolean = false
+  showAge: boolean = false,
+  onProgress?: (job: VideoJob) => void
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
@@ -297,6 +300,7 @@ export async function generateVideo(
   );
   if (!res.ok) throw await readError(res, "Video generation failed");
   let job: VideoJob = await res.json();
+  onProgress?.(job);
 
   const deadline = Date.now() + VIDEO_TIMEOUT_MS;
   while (job.status === "running") {
@@ -305,6 +309,7 @@ export async function generateVideo(
     const poll = await fetch(`${API_BASE}/video/jobs/${job.job_id}`);
     if (!poll.ok) throw await readError(poll, "Lost track of video generation");
     job = await poll.json();
+    onProgress?.(job);
   }
   if (job.status === "error" || !job.video_filename) {
     throw new Error(job.error || "Video generation failed");
