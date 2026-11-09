@@ -37,3 +37,6 @@ Backend, schema, picker/review queue, cache versioning, fixture and regression s
 Fresh same-server DB snapshot verified (1,041 rows). GitHub PR/checks → merge → automatic deploy → revision/schema/health/auth smoke checks. Prior revision: 921b0a2. No fresh off-site backup; automatic approval review rejected egress/pruning.
 
 CI fix: use Ubuntu 24.04 for pinned Playwright. First run failed at browser install; no tests or deployment ran. Wait for corrected checks before merge.
+
+## Face-detection diagnostic
+Supplied full-body couple photo is missed at full-frame scale; same detector finds both faces in a tighter crop. See decisions/qa/face-detection-distance.md. Potential crop/tile fallback remains a proposed follow-up, not implemented. User asked for an explanation only.

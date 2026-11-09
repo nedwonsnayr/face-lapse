@@ -56,3 +56,6 @@ Implementation tasks ready. Work in isolated checkout with throwaway data; sourc
 Backend, schema, picker/review queue, cache versioning, fixture and regression suites implemented. Verify full suite, actual two-face discovery, saved choice/re-alignment, export/deletion protection, rotated-original geometry, migration and phone dialog.
 
 Hosted check 42660131648 blocked on Playwright/Ubuntu 26.04 incompatibility before tests. Pinned test runner to Ubuntu 24.04; rerun pending.
+
+## face-detection-distance (2026-11-09)
+Diagnosis complete: HEIC decoding succeeds; full-frame pipeline finds zero, tighter foreground crop finds two. No app changes. See decisions/qa/face-detection-distance.md.
