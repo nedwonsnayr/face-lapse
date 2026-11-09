@@ -44,8 +44,8 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
             job.update(status="done", video_filename=Path(video_path).name)
             log.info("Video ready: %s (%.1fs)", job["video_filename"], time.time() - t0)
         else:
-            job.update(status="error", error="Video generation failed. Ensure FFmpeg is installed (brew install ffmpeg).")
-            log.error("Video generation failed (ffmpeg error)")
+            job.update(status="error", error="Could not create the video. Please try again.")
+            log.error("Video generation failed while rendering or encoding")
 
 
 def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> dict:

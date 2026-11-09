@@ -8,3 +8,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - face-detection-distance: supplied-photo failure reproduced; tighter crop detects both foreground faces. Diagnosis only.
 
 - crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).
+
+- styled-video-export: verified; see [styled-video-export](styled-video-export.md).

@@ -7,3 +7,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - manual-face-selection: verified for local delivery; see [manual-face-selection](manual-face-selection.md).
 
 - crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).
+
+- styled-video-export: verified; see [styled-video-export](styled-video-export.md).
