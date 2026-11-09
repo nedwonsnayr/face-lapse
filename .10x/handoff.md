@@ -86,3 +86,6 @@ Ready for implementation. Pending crop-search change stays included in this draf
 
 ## styled-video-export — Implementation Complete
 Styled renderer/fonts, independent flags/calendar handling, unique outputs/rational cadence and regression cases implemented. Verify decoded MP4 appearance for all four modes, exact frame count/duration, birthday validation/timezone behavior and full regression suites.
+
+## Styled export performance diagnostic (2026-11-09)
+Live export completed in 265.2s for 1,043 frames / 52.15s playback; observed ~4 CPU cores busy. UI waits for full generation before transfer. See decisions/sre/styled-export-performance.md. No app/production changes made; phase profiling and optimization remain proposed follow-up.

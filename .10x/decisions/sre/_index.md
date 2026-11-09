@@ -9,3 +9,5 @@
 - crop-search-fallback: verified locally; [crop-search-fallback](crop-search-fallback.md).
 
 - styled-video-export: verified; see [styled-video-export](styled-video-export.md).
+
+- styled-export-performance: production export measured at 265.2s for 1,043 frames; generation wait, not initial transfer.
