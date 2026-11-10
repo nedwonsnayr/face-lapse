@@ -22,6 +22,7 @@ from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
 from ..services.video import generate_video
 from ..services.ordering import library_order
 from .profiles import get_profile_id
+from ..services.selection import select_frames
 
 router = APIRouter()
 
@@ -149,6 +150,9 @@ def generate_timelapse(
         default=None,
         description="Birthday in YYYY-MM-DD format for age calculation",
     ),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    sampling: str = Query(default="all", pattern="^(all|day|week|month)$"),
     db: Session = Depends(get_db),
     profile_id: int = Depends(get_profile_id),
 ):
@@ -156,12 +160,16 @@ def generate_timelapse(
     # Get all included images with aligned versions
     images = (
         db.query(Image)
-        .filter(Image.profile_id == profile_id, Image.included_in_video == True, Image.face_detected == True, Image.needs_face_selection == False)  # noqa: E712
+        .filter(Image.deleted_at.is_(None), Image.profile_id == profile_id, Image.included_in_video == True, Image.face_detected == True, Image.needs_face_selection == False)  # noqa: E712
         .all()
     )
 
     # Same order as the library and the in-app player.
-    images = library_order(images)
+    if date_from and date_to and date_from > date_to:
+        raise HTTPException(422, 'Start date must be before the end date')
+    images = select_frames(library_order(images), date_from, date_to, sampling)
+    db.expunge_all()
+    db.close()
 
     if not images:
         raise HTTPException(

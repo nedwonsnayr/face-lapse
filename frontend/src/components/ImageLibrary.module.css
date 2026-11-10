@@ -439,6 +439,7 @@
 }
 
 .rowThumb {
+  position: relative;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -495,3 +496,11 @@
 .rowExcluded .rowDate {
   color: var(--faint);
 }
+
+.archiveControls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 18px; font-size: var(--text-sm); }
+.archiveControls label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.archiveControls input, .archiveControls select { min-width: 0; max-width: 100%; }
+.notice { margin: 12px 0; padding: 12px; border-left: 2px solid var(--accent); }
+.cardSelect { position: absolute; top: 6px; right: 6px; z-index: 2; padding: 8px; background: var(--surface); border-radius: var(--radius); }
+.rowSelect { display: flex; align-items: center; padding: 8px; }
+.cardSelect input, .rowSelect input { width: 18px; height: 18px; accent-color: var(--accent); }

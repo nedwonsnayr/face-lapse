@@ -1,3 +1,13 @@
+# Archive experience — implementation complete
+
+Implemented all eight approved areas on PR23's deployed pool fix. Additive migration009 and explicit active-photo filters; person-scoped trash/restore/permanent deletion, validated move/copy with independent files and cleanup on failure; deterministic date/calendar export selection; atomic backup-status sidecar and on-demand scoped health. UI has bounded decoded frame cache and retries, bounded grid/list/no-face DOM, date navigation, batch transfer/trash/undo, camera guide/timer, comparisons, and local per-person export presets. Existing visual system retained. No production photo mutations or deployment.
+
+Initial verification: 43 backend tests passed; 11 targeted browser tests passed, covering all new workflows plus scaled drag/reorder. Baseline browser run 52/53, with the old mount-everything assertion updated for windowing. Additional backup-status test and final polish require final full regression pass. Production build passes. Desktop/mobile screenshot review prompted caption/buffering and retry-layout refinements. Temporary test cleanup fixed to handle TERM/INT and directly own the Vite process.
+
+Next: final backend/browser/build checks, migration-retention check on a disposable copy, security review, then PR and operational handoff. See ADR009 and docs/hosting.md for rollback/backup caveats. No automatic trash purge; presets stay local; file check is presence only.
+
+## Previous history
+
 # Archive experience — design and plan complete
 
 User approved all prior recommendations. Spec and ADR-009 recorded. Implement scoped backend then bounded frontend media/navigation and archive tools; verify all paths before PR. PR23 is merged and deployed. No live photo mutations.

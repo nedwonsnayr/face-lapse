@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { UploadedImage, AlignProgress, AlignResponse, UploadProgress } from "../api";
+import { ImageRecord, UploadedImage, AlignProgress, AlignResponse, UploadProgress } from "../api";
 import { Button, IconButton } from "./ui/Button";
 import Icon from "./ui/Icon";
 import cx from "./ui/cx";
@@ -16,6 +16,8 @@ import s from "./Upload.module.css";
 interface UploadProps {
   onAlignComplete: (result: AlignResponse) => void;
   pendingImages?: UploadedImage[];
+  personName?: string;
+  previousPhoto?: ImageRecord;
   /** Library already has photos: show a slim drop strip instead of the big empty state. */
   compact?: boolean;
 }
@@ -32,10 +34,10 @@ const DUPLICATE_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ede8df' width='100' height='100'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' font-family='sans-serif' font-size='11' fill='%23a29c92'%3EDuplicate%3C/text%3E%3C/svg%3E";
 
 const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
-  { onAlignComplete, compact = false, pendingImages },
+  { onAlignComplete, compact = false, pendingImages, personName = "this person", previousPhoto },
   ref
 ) {
-  const { uploadImages, alignImages, deleteImage, getOriginalImageUrl } = useProfileApi();
+  const { uploadImages, alignImages, deleteImage, getOriginalImageUrl, getAlignedImageUrl } = useProfileApi();
   const [isDragging, setIsDragging] = useState(false);
   const [stage, setStage] = useState<Stage>("idle");
   const [uploadCurrent, setUploadCurrent] = useState(0);
@@ -62,6 +64,11 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
   // Webcam state
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
+  const [guide, setGuide] = useState(true);
+  const [delay, setDelay] = useState(3);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownTimer = useRef<ReturnType<typeof setInterval>>();
+  useEffect(() => () => clearInterval(countdownTimer.current), []);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const mounted = useRef(true);
@@ -227,6 +234,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
   }, []);
 
   const stopWebcam = useCallback(() => {
+    clearInterval(countdownTimer.current); setCountdown(null);
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -261,7 +269,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
     // Convert canvas to blob, then to File
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
+        if (!blob || !mounted.current || !streamRef.current) return;
         
         // Create a File from the blob with a timestamp filename
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -278,6 +286,24 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
       0.95 // Quality
     );
   }, [stopWebcam, handleFiles]);
+
+  const startCountdown = () => {
+    if (countdown !== null) { clearInterval(countdownTimer.current); setCountdown(null); return; }
+    if (!delay) { capturePhoto(); return; }
+    let remaining = delay;
+    setCountdown(remaining);
+    countdownTimer.current = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) { clearInterval(countdownTimer.current); setCountdown(null); capturePhoto(); }
+      else setCountdown(remaining);
+    }, 1000);
+  };
+  useEffect(() => {
+    if (!isWebcamActive) return;
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") stopWebcam(); };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [isWebcamActive, stopWebcam]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(Array.from(e.target.files || []));
@@ -548,7 +574,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
         <div data-testid="alignment-results" className={s.results}>
           <span data-testid="alignment-result-success" className={s.resultSuccess}>
             <Icon name="check" size={14} />
-            {succeededCount} aligned successfully
+            {succeededCount} aligned successfully · Saved to {personName}
           </span>
           {lastResult.results.some((r) => r.needs_face_selection) && (
             <span className={s.resultFail}>Multiple faces found. Choose your face below.</span>
@@ -583,7 +609,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
           <div className={s.modal} role="dialog" aria-modal="true" aria-labelledby="webcam-title">
             <div className={s.modalHeader}>
               <h3 id="webcam-title" className={s.modalTitle}>
-                Take a photo
+                Take a photo for {personName}
               </h3>
               <IconButton
                 data-testid="webcam-close-button"
@@ -599,7 +625,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
               </div>
             ) : (
               <>
-                <div className={s.videoFrame}>
+                <div className={s.videoFrame} style={{ position: "relative" }}>
                   <video
                     ref={videoRef}
                     autoPlay
@@ -620,13 +646,22 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
                       setWebcamError("Video error occurred");
                     }}
                   />
+                  {guide && previousPhoto && <img className={s.cameraGuide}
+                    src={getAlignedImageUrl(previousPhoto.id, previousPhoto.content_hash, "frame")} alt="Previous selfie framing guide" />}
+                  {countdown !== null && <span className={s.countdown} role="status" aria-live="assertive">{countdown}</span>}
+                </div>
+                <div className={s.cameraSettings}>
+                  {previousPhoto && <label><input type="checkbox" checked={guide} onChange={e => setGuide(e.target.checked)} /> Previous selfie guide</label>}
+                  <label>Timer <select aria-label="Capture timer" value={delay} onChange={e => setDelay(Number(e.target.value))} disabled={countdown !== null}>
+                    <option value={0}>Off</option><option value={3}>3 seconds</option><option value={5}>5 seconds</option>
+                  </select></label>
                 </div>
                 <div className={s.modalControls}>
                   <button
                     data-testid="webcam-capture-button"
                     className={s.shutter}
-                    onClick={capturePhoto}
-                    aria-label="Capture"
+                    onClick={startCountdown}
+                    aria-label={countdown === null ? "Capture" : "Cancel countdown"}
                     title="Capture"
                   >
                     <span className={s.shutterInner} />

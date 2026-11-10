@@ -39,6 +39,10 @@ export async function deleteAllImages(page: Page) {
   for (const img of images) {
     await page.request.delete(`/api/images/${img.id}`);
   }
+  const trash = await page.request.get("/api/archive/trash");
+  if (trash.ok()) for (const img of await trash.json()) {
+    await page.request.delete(`/api/archive/trash/${img.id}`);
+  }
 }
 
 export async function uploadFileViaAPI(

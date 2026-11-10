@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ArchiveTools from "./components/ArchiveTools";
 import FacePicker, { FaceReview } from "./components/FacePicker";
 import Upload, { UploadHandle } from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
@@ -69,17 +70,18 @@ export default function App() {
     {error ? <><p role="alert">{error}</p><Button onClick={load}>Try again</Button></> : "Loading people…"}
   </div>;
   return <ProfileApiContext.Provider value={api}>
-    <PersonWorkspace key={profile.id} profile={profile} onProfileSaved={updated}
+    <PersonWorkspace key={profile.id} profile={profile} profiles={profiles} onProfileSaved={updated}
       tabs={<PersonTabs profiles={profiles} current={profile} onSelect={select} onSaved={saved} />} />
   </ProfileApiContext.Provider>;
 }
 
-function PersonWorkspace({ profile, tabs, onProfileSaved }: {
-  profile: Profile; tabs: React.ReactNode; onProfileSaved: (profile: Profile) => void;
+function PersonWorkspace({ profile, profiles, tabs, onProfileSaved }: {
+  profile: Profile; profiles: Profile[]; tabs: React.ReactNode; onProfileSaved: (profile: Profile) => void;
 }) {
   const { listImages } = useProfileApi();
   const [images, setImages] = useState<ImageRecord[]>([]);
   const [facePickerId, setFacePickerId] = useState<number | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [recentUploadIds, setRecentUploadIds] = useState<Set<number>>(new Set());
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
@@ -92,9 +94,9 @@ function PersonWorkspace({ profile, tabs, onProfileSaved }: {
     const number = ++requestNumber.current;
     try {
       const data = await listImages();
-      if (alive.current && number === requestNumber.current) setImages(data);
+      if (alive.current && number === requestNumber.current) { setImages(data); setLibraryError(null); }
     } catch (err) {
-      console.error("Failed to fetch images:", err);
+      if (alive.current && number === requestNumber.current) setLibraryError("Could not refresh your library. Your photos are still saved.");
     } finally {
       if (alive.current && number === requestNumber.current) setLoading(false);
     }
@@ -226,6 +228,8 @@ function PersonWorkspace({ profile, tabs, onProfileSaved }: {
           <ErrorBoundary section="Upload">
             <Upload
               ref={uploadRef}
+              personName={profile.name}
+              previousPhoto={[...includedImages].sort((a, b) => (b.photo_taken_at ?? "").localeCompare(a.photo_taken_at ?? ""))[0]}
               pendingImages={loading ? undefined : images.filter((img) => img.pending)}
               compact={!loading && libraryImages.length > 0}
               onAlignComplete={handleAlignComplete}
@@ -234,6 +238,7 @@ function PersonWorkspace({ profile, tabs, onProfileSaved }: {
 
           <FaceReview images={images.filter((img) => img.needs_face_selection)} onChoose={setFacePickerId} onRefresh={fetchImages} />
 
+          {libraryError && <p role="alert">{libraryError} <Button onClick={fetchImages}>Retry library</Button></p>}
           {loading ? (
             <p data-testid="loading-message" className={s.loading}>
               Loading library…
@@ -242,6 +247,7 @@ function PersonWorkspace({ profile, tabs, onProfileSaved }: {
             <ErrorBoundary section="Image Library">
               <ImageLibrary
                 images={libraryImages}
+                profiles={profiles}
                 recentUploadIds={recentUploadIds}
                 onRefresh={fetchImages}
                 onDismissRecent={handleDismissRecent}
@@ -250,6 +256,7 @@ function PersonWorkspace({ profile, tabs, onProfileSaved }: {
               />
             </ErrorBoundary>
           )}
+          <ArchiveTools images={images} onRefresh={fetchImages} />
         </section>
 
         <aside className={s.studioPane} aria-label="Timelapse">

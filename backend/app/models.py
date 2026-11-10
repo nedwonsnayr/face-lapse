@@ -44,6 +44,8 @@ class Image(Base):
     needs_face_selection = Column(Boolean, nullable=False, default=False, server_default="0")
     alignment_version = Column(String, nullable=False, default="", server_default="")
 
+    deleted_at = Column(DateTime, nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

@@ -1,3 +1,4 @@
+import type { FrameSelection } from "./selection";
 const API_BASE = "/api";
 function scoped(path: string, profileId = 1): string {
   return `${path}${path.includes("?") ? "&" : "?"}profile_id=${profileId}`;
@@ -266,7 +267,7 @@ export async function realignImage(
   return res.json();
 }
 
-export async function deleteNoFaceImages(profileId = 1): Promise<{ deleted: number }> {
+export async function deleteNoFaceImages(profileId = 1): Promise<{ deleted: number; image_ids: number[] }> {
   const res = await fetch(scoped(`${API_BASE}/images/no-face`, profileId), { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete no-face images");
   return res.json();
@@ -306,13 +307,19 @@ export async function generateVideo(
   birthday: string | null = null,
   showAge: boolean = false,
   onProgress?: (job: VideoJob) => void,
-  profileId = 1
+  profileId = 1,
+  selection?: FrameSelection
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
     show_dates: String(showDates),
     show_age: String(showAge),
   });
+  if (selection) {
+    if (selection.date_from) params.set("date_from", selection.date_from);
+    if (selection.date_to) params.set("date_to", selection.date_to);
+    params.set("sampling", selection.sampling);
+  }
   if (birthday) {
     params.append("birthday", birthday);
   }
@@ -407,6 +414,7 @@ export async function selectFace(id: number, faceIndex: number, profileId = 1): 
 /** Bound to one person for the lifetime of a workspace and any async work it starts. */
 export function createProfileApi(profileId: number) {
   return {
+    profileId,
     listImages: () => listImages(profileId),
     uploadImages: (files: File[], progress?: (p: UploadProgress) => void) => uploadImages(files, progress, profileId),
     alignImages: (ids: number[], progress?: (p: AlignProgress) => void) => alignImages(ids, progress, profileId),
@@ -419,8 +427,8 @@ export function createProfileApi(profileId: number) {
     selectFace: (id: number, faceIndex: number) => selectFace(id, faceIndex, profileId),
     getAlignedImageUrl: (id: number, version?: string, size: ImageSize = "full") => getAlignedImageUrl(id, version, size, profileId),
     getOriginalImageUrl: (id: number, version?: string, size: ImageSize = "full") => getOriginalImageUrl(id, version, size, profileId),
-    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void) =>
-      generateVideo(duration, dates, birthday, age, progress, profileId),
+    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void, selection?: FrameSelection) =>
+      generateVideo(duration, dates, birthday, age, progress, profileId, selection),
     getVideoUrl: (filename: string) => scoped(`${API_BASE}/video/${encodeURIComponent(filename)}`, profileId),
   };
 }

@@ -69,7 +69,7 @@ test.describe("Face Lapse – library view switching at scale", () => {
     await deleteAllImages(page);
   });
 
-  test("renders every photo after a switch (in batches) and drag-reorder works in both views", async ({ page }) => {
+  test("windows photos after a switch and drag-reorder works in both views", async ({ page }) => {
     // More photos than the first render batch. Trailing bytes after the JPEG
     // end marker give each copy its own hash without changing the image.
     const COUNT = 45;
@@ -90,13 +90,16 @@ test.describe("Face Lapse – library view switching at scale", () => {
     await page.reload();
     const group = page.getByTestId("previously-processed-group");
     const cards = group.locator('[data-testid^="previous-image-card-"]');
-    await expect(cards).toHaveCount(COUNT);
+    await expect.poll(() => cards.count()).toBeGreaterThan(3);
+    expect(await cards.count()).toBeLessThanOrEqual(COUNT);
 
     await page.getByTestId("library-view-list").click();
     await expect(group.getByTestId("library-items")).toHaveAttribute("data-view", "list");
-    await expect(cards).toHaveCount(COUNT);
+    await expect.poll(() => cards.count()).toBeGreaterThan(3);
+    expect(await cards.count()).toBeLessThanOrEqual(COUNT);
     await page.getByTestId("library-view-grid").click();
-    await expect(cards).toHaveCount(COUNT);
+    await expect.poll(() => cards.count()).toBeGreaterThan(3);
+    expect(await cards.count()).toBeLessThanOrEqual(COUNT);
 
     const idAt = async (i: number) => Number((await cards.nth(i).getAttribute("data-testid"))!.split("-").pop());
     const savedOrder = async (): Promise<number[]> =>
@@ -125,7 +128,8 @@ test.describe("Face Lapse – library view switching at scale", () => {
     expect(await idAt(2)).toBe((await savedOrder())[2]);
 
     await page.getByTestId("library-view-list").click();
-    await expect(cards).toHaveCount(COUNT);
+    await expect.poll(() => cards.count()).toBeGreaterThan(3);
+    expect(await cards.count()).toBeLessThanOrEqual(COUNT);
     await dragFirstOnto(3); // list
 
     // Newest first: dragging still moves just that photo, in the direction shown.

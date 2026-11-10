@@ -14,7 +14,7 @@ class ProfileTests(unittest.TestCase):
     def setUpClass(cls):
         from backend.app.database import Base, get_db
         from backend.app.main import app
-        from backend.app.routers import images, video
+        from backend.app.routers import images, video, archive
         from backend.app.services import resize
         cls.temp = tempfile.TemporaryDirectory(prefix="person-tests-")
         cls.root = Path(cls.temp.name)
@@ -32,6 +32,9 @@ class ProfileTests(unittest.TestCase):
         cls.old_overrides = dict(app.dependency_overrides)
         app.dependency_overrides[get_db] = get_test_db
         cls.patches = [patch.object(images, 'SessionLocal', cls.sessions),
+                       patch.object(archive, 'DATA_DIR', cls.root),
+                       patch.object(archive, 'ORIGINALS_DIR', cls.root / 'originals'),
+                       patch.object(archive, 'ALIGNED_DIR', cls.root / 'aligned'),
                        patch.object(images, 'ORIGINALS_DIR', cls.root / 'originals'),
                        patch.object(images, 'ALIGNED_DIR', cls.root / 'aligned'),
                        patch.object(resize, 'THUMBS_DIR', cls.root / 'thumbs'),
@@ -219,5 +222,135 @@ class ProfileTests(unittest.TestCase):
                 self.migration.up(conn)
                 self.assertEqual(tuple(conn.execute(text('SELECT id, original_path, sort_order, profile_id FROM images')).first()), (7, '/old/original.jpg', 42, 1))
                 self.assertEqual(conn.execute(text('SELECT name FROM profiles WHERE id=1')).scalar(), 'Renamed')
+                self.assertEqual(conn.execute(text('PRAGMA integrity_check')).scalar(), 'ok')
+            engine.dispose()
+
+    def test_trash_restore_batch_and_permanent_delete(self):
+        from backend.app.models import Image
+        first = self.upload(1, 'face_1.jpg')['id']
+        second = self.upload(1, 'face_2.jpg')['id']
+        with self.sessions() as db:
+            original = Path(db.get(Image, first).original_path)
+        wrong = self.upload(self.other, 'face_3.jpg')['id']
+        response = self.client.post('/api/archive/trash', json={'image_ids': [first, wrong]})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(len(self.client.get('/api/images').json()), 2)
+        self.assertEqual(self.client.post('/api/archive/trash', json={'image_ids': [first, second]}).status_code, 200)
+        self.assertEqual(self.client.get('/api/images').json(), [])
+        self.assertTrue(original.exists())
+        self.assertEqual(len(self.client.get('/api/archive/trash').json()), 2)
+        self.assertEqual(self.client.patch(f'/api/images/{first}/toggle').status_code, 404)
+        self.assertEqual(self.client.post('/api/images/align', json={'image_ids': [first]}).status_code, 404)
+        self.assertEqual(self.client.post('/api/video/generate').status_code, 400)
+        self.assertEqual(self.client.post(f'/api/archive/restore?profile_id={self.other}', json={'image_ids': [first]}).status_code, 404)
+        self.assertEqual(self.client.post('/api/archive/restore', json={'image_ids': [first, second]}).status_code, 200)
+        self.assertEqual(len(self.client.get('/api/images').json()), 2)
+        self.assertEqual(self.client.delete(f'/api/archive/trash/{first}').status_code, 404)
+        self.client.delete(f'/api/images/{first}')
+        self.assertEqual(self.client.delete(f'/api/archive/trash/{first}').status_code, 200)
+        self.assertFalse(original.exists())
+
+    def test_transfer_copies_independent_files_and_move_is_atomic(self):
+        from backend.app.models import Image
+        first = self.upload(1, 'face_1.jpg')['id']
+        with self.sessions() as db:
+            source = db.get(Image, first)
+            source.aligned_path = str(self.root / 'aligned' / 'test-transfer.jpg')
+            Path(source.aligned_path).write_bytes(Path(source.original_path).read_bytes())
+            source.align_attempted = True
+            source.face_detected = True
+            db.commit()
+        body = {'image_ids': [first], 'target_profile_id': self.other, 'mode': 'copy'}
+        result = self.client.post('/api/archive/transfer', json=body)
+        self.assertEqual(result.status_code, 200, result.text)
+        copied = result.json()['image_ids'][0]
+        with self.sessions() as db:
+            source, target = db.get(Image, first), db.get(Image, copied)
+            self.assertNotEqual(source.original_path, target.original_path)
+            self.assertNotEqual(source.aligned_path, target.aligned_path)
+            copied_path = Path(target.original_path)
+            self.assertEqual(Path(source.original_path).read_bytes(), copied_path.read_bytes())
+        self.assertEqual(self.client.post('/api/archive/transfer', json=body).status_code, 409)
+        second = self.upload(1, 'face_2.jpg')['id']
+        body.update(image_ids=[first, second], mode='move')
+        self.assertEqual(self.client.post('/api/archive/transfer', json=body).status_code, 409)
+        self.assertEqual(len(self.client.get('/api/images').json()), 2)
+        body['image_ids'] = [second]
+        self.assertEqual(self.client.post('/api/archive/transfer', json=body).status_code, 200)
+        self.assertEqual(self.client.get(f'/api/images/{second}/original').status_code, 404)
+        self.assertEqual(self.client.get(f'/api/images/{second}/original?profile_id={self.other}').status_code, 200)
+        self.client.delete(f'/api/images/{first}')
+        self.client.delete(f'/api/archive/trash/{first}')
+        self.assertTrue(copied_path.exists())
+
+    def test_copy_failure_cleans_up_and_restore_conflict_preserves_trash(self):
+        from backend.app.routers import archive
+        first = self.upload(1, 'face_1.jpg')['id']
+        before = set((self.root / 'originals').glob('copy-*'))
+        with patch.object(archive.shutil, 'copyfile', side_effect=OSError('disk full')):
+            with self.assertRaises(OSError):
+                self.client.post('/api/archive/transfer', json={'image_ids': [first], 'target_profile_id': self.other, 'mode': 'copy'})
+        self.assertEqual(set((self.root / 'originals').glob('copy-*')), before)
+        self.assertEqual(self.client.get(f'/api/images?profile_id={self.other}').json(), [])
+        self.client.delete(f'/api/images/{first}')
+        self.upload(1, 'face_1.jpg')
+        self.assertEqual(self.client.post('/api/archive/restore', json={'image_ids': [first]}).status_code, 409)
+        self.assertEqual(len(self.client.get('/api/archive/trash').json()), 1)
+
+    def test_health_is_scoped_and_backup_status_is_not_invented(self):
+        import json
+        from backend.app.models import Image
+        status = self.root / 'backup-status.json'
+        status.unlink(missing_ok=True)
+        first = self.upload(1, 'face_1.jpg')['id']
+        self.upload(self.other, 'face_2.jpg')
+        with self.sessions() as db:
+            Path(db.get(Image, first).original_path).unlink()
+        result = self.client.get('/api/archive/health').json()
+        self.assertEqual((result['photos'], result['missing_originals'], result['pending']), (1, 1, 1))
+        self.assertEqual(result['backup']['status'], 'unknown')
+        self.assertEqual(self.client.get(f'/api/archive/health?profile_id={self.other}').json()['missing_originals'], 0)
+        status.write_text(json.dumps({'last_success': '2026-11-01T03:00:00+00:00', 'status': 'failed', 'secret': 'do not expose'}))
+        result = self.client.get('/api/archive/health').json()
+        self.assertEqual(result['backup']['status'], 'failed')
+        self.assertNotIn('secret', result['backup'])
+        status.write_text('bad json')
+        self.assertEqual(self.client.get('/api/archive/health').json()['backup']['status'], 'unknown')
+
+    def test_export_sampling_uses_calendar_buckets_and_date_range(self):
+        from datetime import datetime
+        from backend.app.models import Image
+        from backend.app.routers import video
+        ids = [self.upload(1, name)['id'] for name in ('face_1.jpg', 'face_2.jpg', 'face_3.jpg')]
+        with self.sessions() as db:
+            for number, image_id in enumerate(ids):
+                photo = db.get(Image, image_id)
+                photo.photo_taken_at = datetime(2026, 11, 2 if number < 2 else 9, 10 + number)
+                photo.aligned_path = photo.original_path
+                photo.face_detected = True
+                photo.included_in_video = True
+                photo.align_attempted = True
+            db.commit()
+        with patch.object(video, '_start_job', return_value={'status': 'running'}) as start:
+            response = self.client.post('/api/video/generate?sampling=week&date_from=2026-11-01&date_to=2026-11-30')
+            self.assertEqual(response.status_code, 202)
+            self.assertEqual([p['id'] for p in start.call_args.args[0]], [ids[0], ids[2]])
+            self.client.post('/api/video/generate?sampling=month')
+            self.assertEqual([p['id'] for p in start.call_args.args[0]], [ids[0]])
+            self.assertEqual(self.client.post('/api/video/generate?date_from=2026-12-01&date_to=2026-01-01').status_code, 422)
+            self.assertEqual(self.client.post('/api/video/generate?sampling=bad').status_code, 422)
+
+    def test_trash_migration_preserves_existing_rows_and_is_idempotent(self):
+        migration = importlib.import_module('migrations.009_add_trash')
+        with tempfile.TemporaryDirectory() as directory:
+            engine = create_engine(f'sqlite:///{directory}/old.db')
+            with engine.connect() as conn:
+                conn.execute(text('CREATE TABLE images(id INTEGER PRIMARY KEY, profile_id INTEGER, original_path TEXT)'))
+                conn.execute(text("INSERT INTO images(id, profile_id, original_path) VALUES (:id, 1, :path)"),
+                             [{'id': i, 'path': f'/originals/{i}.jpg'} for i in range(1, 1046)])
+                conn.commit()
+                migration.up(conn)
+                migration.up(conn)
+                self.assertEqual(conn.execute(text('SELECT count(*) FROM images WHERE deleted_at IS NULL')).scalar(), 1045)
                 self.assertEqual(conn.execute(text('PRAGMA integrity_check')).scalar(), 'ok')
             engine.dispose()

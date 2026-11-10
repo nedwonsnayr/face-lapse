@@ -9,7 +9,9 @@ DATA="$APP_DIR/data"
 set -a; source "$APP_DIR/.env"; set +a
 
 ping() { [ -n "${HEALTHCHECK_URL:-}" ] && curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL$1" >/dev/null || true; }
-trap 'ping /fail' ERR
+status() { python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" "$1"; }
+trap 'status failed; ping /fail' ERR
+status running
 ping /start
 
 # Consistent SQLite snapshot (safe while the app is running).
@@ -30,5 +32,6 @@ restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 # Spot-check 5% of stored data each night.
 restic check --read-data-subset=5%
 
+status success
 ping ""
 echo "$(date -Is) backup ok"
