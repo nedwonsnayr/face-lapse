@@ -15,6 +15,8 @@ def record(path: Path, status: str):
         old = json.loads(path.read_text())
     except (OSError, ValueError):
         old = {}
+    if not isinstance(old, dict):
+        old = {}
     now = datetime.now(timezone.utc).isoformat()
     data = {'status': status, 'last_attempt': now if status == 'running' else old.get('last_attempt', now),
             'last_success': now if status == 'success' else old.get('last_success')}

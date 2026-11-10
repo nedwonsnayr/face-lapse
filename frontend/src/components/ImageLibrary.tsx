@@ -561,13 +561,13 @@ export default function ImageLibrary({
       {images.length > 0 && <div className={s.archiveControls}>
         <Button aria-pressed={selecting} onClick={() => { setSelecting(!selecting); setSelectedIds(new Set()); }}>{selecting ? "Done selecting" : "Select photos"}</Button>
         {selecting && <>
-          <span>{selectedIds.size} selected</span>
-          <Button onClick={() => setSelectedIds(new Set(previousImages.slice(0, 1000).map(p => p.id)))}>Select filtered photos</Button>
-          <Button disabled={busy || !selectedIds.size} onClick={() => batchAction("trash")}>Move to Trash</Button>
+          <span>{selectedIds.size} selected{selectedIds.size > 1000 ? " · Select up to 1,000 at a time" : ""}</span>
+          <Button onClick={() => setSelectedIds(new Set(previousImages.slice(0, 1000).map(p => p.id)))}>{previousImages.length > 1000 ? "Select first 1,000 filtered photos" : "Select filtered photos"}</Button>
+          <Button disabled={busy || !selectedIds.size || selectedIds.size > 1000} onClick={() => batchAction("trash")}>Move to Trash</Button>
           <select className={forms.field} aria-label="Destination person" value={destination} onChange={e => setDestination(e.target.value)}>
             <option value="">Choose person…</option>{profiles.filter(p => p.id !== profileId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
-          {(["move", "copy"] as const).map(mode => <Button key={mode} disabled={busy || !selectedIds.size || !destination}
+          {(["move", "copy"] as const).map(mode => <Button key={mode} disabled={busy || !selectedIds.size || selectedIds.size > 1000 || !destination}
             onClick={() => batchAction("transfer", { mode, target_profile_id: Number(destination) })}>{mode === "move" ? "Move to person" : "Copy to person"}</Button>)}
         </>}
       </div>}

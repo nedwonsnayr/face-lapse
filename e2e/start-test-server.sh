@@ -15,17 +15,6 @@ FRONTEND_LOG="$E2E_LOG_DIR/frontend.log"
 : >"$BACKEND_LOG"
 : >"$FRONTEND_LOG"
 
-BACKEND_PID=""
-FRONTEND_PID=""
-cleanup() {
-  [ -z "$BACKEND_PID" ] || kill "$BACKEND_PID" 2>/dev/null || true
-  [ -z "$FRONTEND_PID" ] || kill "$FRONTEND_PID" 2>/dev/null || true
-  wait 2>/dev/null || true
-  rm -rf "$FACE_LAPSE_DATA_DIR"
-}
-trap cleanup EXIT
-trap 'exit 0' TERM INT
-
 # Start backend on port 8111 (no pipeline — a `uvicorn | grep` pipe can make `grep` exit 1 when
 # every line is filtered, which breaks `wait` under `set -e` and kills the webServer process.)
 cd "$PROJECT_ROOT"
@@ -57,7 +46,7 @@ done
 
 # Start frontend on port 5111, proxying to the test backend
 cd "$PROJECT_ROOT/frontend"
-VITE_API_PORT=8111 node node_modules/vite/bin/vite.js --port 5111 --strictPort >>"$FRONTEND_LOG" 2>&1 &
+VITE_API_PORT=8111 npx vite --port 5111 --strictPort >>"$FRONTEND_LOG" 2>&1 &
 FRONTEND_PID=$!
 
 # Vite must listen before Playwright's port probe succeeds; confirm with HTTP.
@@ -76,5 +65,11 @@ for i in $(seq 1 "$FRONTEND_WAIT"); do
   sleep 1
 done
 
+cleanup() {
+  kill "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
+  pkill -f "uvicorn.*8111" 2>/dev/null || true
+  rm -rf "$FACE_LAPSE_DATA_DIR"
+}
+trap cleanup EXIT
 
 wait

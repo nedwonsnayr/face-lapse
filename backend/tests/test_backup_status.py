@@ -12,6 +12,7 @@ class BackupStatusTests(unittest.TestCase):
         spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'backup-status.json'
+            path.write_text('[]')  # malformed metadata must not stop the backup
             module.record(path, 'running')
             self.assertIsNone(json.loads(path.read_text())['last_success'])
             module.record(path, 'success')

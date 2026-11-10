@@ -9,7 +9,7 @@ DATA="$APP_DIR/data"
 set -a; source "$APP_DIR/.env"; set +a
 
 ping() { [ -n "${HEALTHCHECK_URL:-}" ] && curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL$1" >/dev/null || true; }
-status() { python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" "$1"; }
+status() { python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" "$1" || echo "Could not record backup status" >&2; }
 trap 'status failed; ping /fail' ERR
 status running
 ping /start

@@ -207,7 +207,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
     
     return age >= 0 ? age : null;
   };
-  const captionImage = displayedImage ?? currentImage;
+  const captionImage = currentImage ? displayedImage ?? currentImage : undefined;
   const currentDate = captionImage?.photo_taken_at
     ? new Date(`${captionImage.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",
@@ -242,7 +242,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
                 const img = images[(safeIndex + n + 1) % images.length];
                 return getAlignedImageUrl(img.id, img.content_hash, "frame");
               })}
-              alt={`Frame ${safeIndex + 1}`} className={s.frame} onReady={url => { setReadySrc(url); setDisplayedImage(currentImage); }}
+              alt={`Frame ${safeIndex + 1}`} className={s.frame} onReady={url => { if (url === requestedSrc) { setReadySrc(url); setDisplayedImage(currentImage); } }}
             />
           )}
         </div>

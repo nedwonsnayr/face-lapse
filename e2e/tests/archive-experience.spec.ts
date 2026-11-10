@@ -189,3 +189,27 @@ test('archive controls fit phone and desktop layouts', async ({ page }) => {
   await page.screenshot({ path: 'test-results/archive-desktop.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1440);
 });
+
+test('failed frame exposes retry and empty export selection can be cleared', async ({ page }) => {
+  const ids = await seed(page);
+  let failing = true;
+  await page.route(`**/api/images/${ids[1]}/aligned?**`, async route => {
+    if (failing && route.request().url().includes('size=frame')) await route.fulfill({ status: 503, body: 'unavailable' });
+    else await route.continue();
+  });
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Retry frame' })).toBeVisible();
+  await expect(page.getByTestId('timelapse-frame')).toHaveAttribute('src', new RegExp(`/images/${ids[0]}/`));
+  await expect(page.getByTestId('timelapse-date-overlay')).toContainText('2021');
+  failing = false;
+  await page.getByRole('button', { name: 'Retry frame' }).click();
+  await expect(page.getByRole('button', { name: 'Retry frame' })).toBeHidden();
+  await page.getByText('Choose photos & export presets').click();
+  await page.getByLabel('Export start date').fill('2099-01-01');
+  await expect(page.getByText('No photos match this selection.')).toBeVisible();
+  await expect(page.getByTestId('timelapse-date-overlay')).toBeHidden();
+  await expect(page.getByTestId('download-video-button')).toBeDisabled();
+  await page.getByRole('button', { name: 'Use all photos' }).click();
+  await expect(page.getByTestId('download-video-button')).toBeEnabled();
+  await expect(page.getByTestId('timelapse-frame')).toBeVisible();
+});
