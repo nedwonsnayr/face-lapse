@@ -15,3 +15,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - person-profiles: see [person-profiles](person-profiles.md).
 
 - archive-experience: approved eight-part upgrade; ADR-009.
+
+- photo-date-fallback: verification complete; see feature review.

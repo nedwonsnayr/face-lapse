@@ -39,7 +39,7 @@ test('unknown date is labelled, editable in both views, and refreshes a paused c
   await edit.click();
   await expect(dialog).toContainText('Date set manually');
   await expect(dialog.getByLabel('Date taken')).toHaveValue('2001-02-03');
-  await page.screenshot({ path: '/private/tmp/photo-date-editor-mobile.png' });
+  await page.screenshot({ path: test.info().outputPath('photo-date-editor-mobile.png') });
   await dialog.getByRole('button', { name: 'Use upload date' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(edit).toContainText('Upload date');

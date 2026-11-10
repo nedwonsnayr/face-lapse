@@ -18,3 +18,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - image-loading-recovery: release read connections between worker stages; concurrent-request regression.
 
 - archive-experience: verified for PR delivery; see archive-experience.md.
+
+- photo-date-fallback: verification complete; see feature review.

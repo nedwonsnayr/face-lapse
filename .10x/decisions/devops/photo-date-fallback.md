@@ -1,0 +1,5 @@
+# Photo date correction — delivery
+
+Open PR for codex/photo-date-fallback; merge through the existing main deployment workflow. Migration010 is additive, idempotent, and leaves all prior date values untouched. Old application code can ignore the new column on rollback. Browser timezone support uses the system tzdata already available in the production image (confirmed by the live correction); no package change. New clients mark undated uploads explicitly; old clients use UTC.
+
+The previously diagnosed live photo was corrected from the extrapolated November 13 value to November 9 19:41 Eastern, its known upload time. Its capture time remains unknown. Audit: /data/.repairs/photo-date-1048-20261110T005750Z.json (private, mode600). After schema rollout it will initially have legacy provenance like other pre-migration rows; the owner's explicit Use upload date action can set upload provenance. Do not automatically reclassify old rows or embed personal row identifiers in migrations. No production application deployment performed during this fix.

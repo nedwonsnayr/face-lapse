@@ -1,3 +1,9 @@
+# Photo date correction — verified, preparing PR
+
+50 backend / 63 browser tests and production build passed. QA/security reviews recorded. Live invalid date repaired to known upload time with guarded audit; original unchanged. Preventive application changes await PR merge/main deployment. Old dates retained with legacy provenance.
+
+## Previous history
+
 # Photo date correction — implementation complete
 
 Uploads no longer call interpolation. EXIF/filename/upload provenance is persisted by additive migration010; prior rows remain legacy. Browser timezone is validated before writes; full UTC camera filenames resolve to local calendar time. Scoped active-photo date editing supports manual and explicit upload fallback. Grid/list date buttons open a modal; staging and library label upload dates. Paused preview looks up current metadata by ID with a memoized map, preserving decoded bytes.
