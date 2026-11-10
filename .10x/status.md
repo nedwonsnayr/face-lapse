@@ -1,3 +1,9 @@
+# Photo date correction — design and planning complete
+
+User deferred to team recommendation. Spec and ADR-010 recorded; proceed with scoped implementation and regression tests. PR24 merged and deployed at d80a19f. No production writes yet.
+
+## Previous history
+
 # Archive experience — PR24 ready for review
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/24 (open, mergeable). GitHub CI running as of publication; no success claim yet. All eight approved areas implemented, 44 backend and 61 browser tests passed locally, build and migration preservation verified. Test server ports5111/8111 are stopped; no background watcher remains. No merge/deployment or production data writes. Merge uses existing main deployment. Backup status will populate after the updated nightly script records a run; Trash has no expiry; presets per person/device. Runbook and reviews linked below in history.

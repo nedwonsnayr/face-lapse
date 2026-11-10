@@ -14,3 +14,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - export-performance: Keep API polling contract, add optional phase/completed/total fields. Snapshot job responses under lock. Preserve existing outputs and download links. No deletion of old user exports.
 
 - archive-experience: approved eight-part upgrade; ADR-009.
+
+- photo-date-fallback: approved explicit date provenance and correction; ADR-010.

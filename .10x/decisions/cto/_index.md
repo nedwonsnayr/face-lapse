@@ -14,3 +14,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - export-performance: Optimize existing Pillow/FFmpeg pipeline; avoid new infrastructure or quality changes.
 
 - archive-experience: approved eight-part upgrade; ADR-009.
+
+- photo-date-fallback: approved explicit date provenance and correction; ADR-010.
