@@ -119,6 +119,29 @@ test('slow frames retain the previous photo; failed thumbnails recover', async (
   await expect.poll(async () => frame.getAttribute('src')).not.toContain(`/images/${ids[0]}/`);
 });
 
+test('normal playback never flashes "Loading frame…"', async ({ page }) => {
+  await seed(page);
+  await page.reload();
+  await expect(page.getByTestId('timelapse-frame')).toBeVisible();
+  // Let every frame load once, then watch a few loops at full speed.
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    const w = window as any;
+    w.__loadingSeen = 0;
+    w.__frameChanges = 0;
+    const counterEl = document.querySelector('[data-testid="frame-counter"]')!;
+    let last = counterEl.textContent;
+    new MutationObserver(() => {
+      if (document.body.innerText.includes('Loading frame')) w.__loadingSeen++;
+      if (counterEl.textContent !== last) { last = counterEl.textContent; w.__frameChanges++; }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  });
+  await page.waitForTimeout(2000);
+  // It really is playing (counted, since 3 photos loop back to the same counter value).
+  expect(await page.evaluate(() => (window as any).__frameChanges)).toBeGreaterThan(3);
+  expect(await page.evaluate(() => (window as any).__loadingSeen)).toBe(0);
+});
+
 test('a large archive mounts a bounded window and can reach the final photo', async ({ page }) => {
   await seed(page);
   const photos = await (await page.request.get('/api/images')).json();

@@ -34,6 +34,13 @@ export class FrameCache {
   clear() { for (const url of this.entries.keys()) this.remove(url); }
 }
 
+/*
+ * The player waits for each frame before advancing, so even a frame that's
+ * already cached is "not displayed yet" for a moment on every tick. Only call
+ * it loading once it's been waiting this long (or nothing is on screen yet).
+ */
+const SLOW_FRAME_MS = 500;
+
 export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
   src: string; ahead: string[]; alt: string; className: string; onReady: (url: string) => void;
 }) {
@@ -41,7 +48,15 @@ export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
   const [displayed, setDisplayed] = useState<{ src: string; alt: string } | null>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [slow, setSlow] = useState(false);
   const ready = useRef(onReady); ready.current = onReady;
+  const waiting = displayed?.src !== src;
+  useEffect(() => {
+    setSlow(false);
+    if (!waiting) return;
+    const t = setTimeout(() => setSlow(true), SLOW_FRAME_MS);
+    return () => clearTimeout(t);
+  }, [src, waiting]);
   useEffect(() => () => cache.current.clear(), []);
   useEffect(() => {
     let active = true;
@@ -69,7 +84,7 @@ export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
   }, [aheadKey]);
   return <>
     {displayed && <img data-testid="timelapse-frame" src={displayed.src} alt={displayed.alt} className={className} />}
-    {(displayed?.src !== src || failed) && <div role="status" style={{ position: "absolute", bottom: 8, left: 8, right: 8, color: "white", background: "rgba(0,0,0,.7)", textAlign: "center", padding: 8 }}>
+    {(failed || (waiting && (slow || !displayed))) && <div role="status" style={{ position: "absolute", bottom: 8, left: 8, right: 8, color: "white", background: "rgba(0,0,0,.7)", textAlign: "center", padding: 8 }}>
       {failed ? <><span>Couldn’t load this frame. </span><Button onClick={() => { cache.current.remove(src); setRetry(n => n + 1); }}>Retry frame</Button></> : "Loading frame…"}
     </div>}
   </>;
