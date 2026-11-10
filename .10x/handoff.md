@@ -1,3 +1,11 @@
+# Photo date correction — PR25 ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/25. Preventive changes await merge and the existing main deployment. Locally: 50 backend / 63 browser tests, frontend build, migration retention and mobile editor review passed; the 2 new browser tests also passed after making screenshot artifacts portable to Linux CI. No background watcher or test servers remain. GitHub checks not yet confirmed complete at this handoff.
+
+Live correction complete: known upload-time fallback is now November 9 rather than the inferred November 13; actual capture date unknown. Guarded private audit saved before the one-row change; original bytes unchanged. Prior records will retain legacy provenance on migration until explicitly edited. QA/security and operational notes are in decisions/*/photo-date-fallback.md and reviews/2026-11-09-photo-date-*.md.
+
+## Previous history
+
 # Photo date correction — verified, preparing PR
 
 50 backend / 63 browser tests and production build passed. QA/security reviews recorded. Live invalid date repaired to known upload time with guarded audit; original unchanged. Preventive application changes await PR merge/main deployment. Old dates retained with legacy provenance.
