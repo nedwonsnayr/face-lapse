@@ -169,7 +169,7 @@ def interpolate_and_store_dates(db: Session, image_ids: list[int] | None = None,
     from ..services.ordering import library_order
     
     # Never use another person's dates as interpolation neighbours.
-    query = db.query(Image)
+    query = db.query(Image).filter(Image.deleted_at.is_(None))
     if profile_id is not None:
         query = query.filter(Image.profile_id == profile_id)
     # Get images to process

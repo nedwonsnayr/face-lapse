@@ -10,3 +10,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - export-performance: User authorized deep analysis and application of improvements proposed after the measured 265.2s export. Preserve styling, resolution, caption combinations and cadence; reduce repeated work and show honest progress.
 
 - person-profiles: see [person-profiles](person-profiles.md).
+
+- archive-experience: approved eight-part upgrade; ADR-009.

@@ -1,3 +1,31 @@
+# Archive experience — PR24 ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/24 (open, mergeable). GitHub CI running as of publication; no success claim yet. All eight approved areas implemented, 44 backend and 61 browser tests passed locally, build and migration preservation verified. Test server ports5111/8111 are stopped; no background watcher remains. No merge/deployment or production data writes. Merge uses existing main deployment. Backup status will populate after the updated nightly script records a run; Trash has no expiry; presets per person/device. Runbook and reviews linked below in history.
+
+## Previous history
+
+# Archive experience — verified, preparing PR
+
+All eight approved improvements implemented. 44 backend and 61 browser tests passed; build/syntax/diff clean. Read-only copy migration preserved all 1,035 original rows and fields. QA/security and operational handoffs recorded. Await reviewed PR/main deployment; no production mutations. Backup UI stays unknown until the updated cron records its first run. Presets local; no automatic Trash purge.
+
+## Previous history
+
+# Archive experience — implementation complete
+
+Implemented all eight approved areas on PR23's deployed pool fix. Additive migration009 and explicit active-photo filters; person-scoped trash/restore/permanent deletion, validated move/copy with independent files and cleanup on failure; deterministic date/calendar export selection; atomic backup-status sidecar and on-demand scoped health. UI has bounded decoded frame cache and retries, bounded grid/list/no-face DOM, date navigation, batch transfer/trash/undo, camera guide/timer, comparisons, and local per-person export presets. Existing visual system retained. No production photo mutations or deployment.
+
+Initial verification: 43 backend tests passed; 11 targeted browser tests passed, covering all new workflows plus scaled drag/reorder. Baseline browser run 52/53, with the old mount-everything assertion updated for windowing. Additional backup-status test and final polish require final full regression pass. Production build passes. Desktop/mobile screenshot review prompted caption/buffering and retry-layout refinements. A test-server cleanup experiment interrupted full-suite runs and was reverted; use the existing harness and explicitly verify test ports are stopped at handoff.
+
+Next: final backend/browser/build checks, migration-retention check on a disposable copy, security review, then PR and operational handoff. See ADR009 and docs/hosting.md for rollback/backup caveats. No automatic trash purge; presets stay local; file check is presence only.
+
+## Previous history
+
+# Archive experience — design and plan complete
+
+User approved all prior recommendations. Spec and ADR-009 recorded. Implement scoped backend then bounded frontend media/navigation and archive tools; verify all paths before PR. PR23 is merged and deployed. No live photo mutations.
+
+## Previous history
+
 # Image loading recovery — 2026-11-09
 
 Production revision 3043fcb reports SQLAlchemy QueuePool timeouts in get_profile_id.

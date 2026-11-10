@@ -9,3 +9,5 @@
 - export-performance: No schema or database writes. Cache signature uses ordered query results, alignment revision and source filesystem stats. Cache remains process-local and bounded to 20 job records.
 
 - person-profiles: see [person-profiles](person-profiles.md).
+
+- archive-experience: approved eight-part upgrade; ADR-009.

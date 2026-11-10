@@ -1,6 +1,9 @@
 import { useProfileApi } from "../ProfileContext";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageRecord, VideoJob } from "../api";
+import ExportSettings from "./ExportSettings";
+import { ALL_FRAMES, FrameSelection, selectFrames } from "../selection";
+import BufferedFrame from "./BufferedFrame";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { Button, IconButton } from "./ui/Button";
@@ -9,7 +12,7 @@ import forms from "./ui/forms.module.css";
 import s from "./Timelapse.module.css";
 
 // Frames to load ahead of the playhead.
-const PRELOAD_AHEAD = 8;
+const PRELOAD_AHEAD = 4;
 
 interface TimelapseProps {
   /** Included+aligned images, in display order */
@@ -18,8 +21,10 @@ interface TimelapseProps {
   onBirthdayChange?: (birthday: string) => Promise<void>;
 }
 
-export default function Timelapse({ images, initialBirthday, onBirthdayChange }: TimelapseProps) {
-  const { generateVideo, getAlignedImageUrl, getVideoUrl } = useProfileApi();
+export default function Timelapse({ images: allImages, initialBirthday, onBirthdayChange }: TimelapseProps) {
+  const { profileId, generateVideo, getAlignedImageUrl, getVideoUrl } = useProfileApi();
+  const [selection, setSelection] = useState<FrameSelection>(ALL_FRAMES);
+  const images = useMemo(() => selectFrames(allImages, selection), [allImages, selection]);
   const [frameDuration, setFrameDuration] = useState(0.05);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -43,6 +48,16 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
     catch { if (mounted.current) setError("Could not save the birthday. Please try again."); }
     finally { if (mounted.current && request === birthdayRequest.current) setSavingBirthday(false); }
   };
+  const [displayedImage, setDisplayedImage] = useState<ImageRecord | null>(null);
+  const [readySrc, setReadySrc] = useState("");
+  const [visible, setVisible] = useState(document.visibilityState === "visible");
+  useEffect(() => {
+    const change = () => setVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", change);
+    return () => document.removeEventListener("visibilitychange", change);
+  }, []);
+  const requestedImage = images[Math.min(currentIndex, Math.max(0, images.length - 1))];
+  const requestedSrc = requestedImage ? getAlignedImageUrl(requestedImage.id, requestedImage.content_hash, "frame") : "";
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear and restart interval whenever frameDuration or isPlaying changes
@@ -52,7 +67,7 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
       intervalRef.current = null;
     }
 
-    if (isPlaying && images.length > 0) {
+    if (isPlaying && visible && images.length > 0 && readySrc === requestedSrc) {
       intervalRef.current = setInterval(() => {
         setCurrentIndex((prev) => {
           const next = (prev + 1) % images.length;
@@ -64,25 +79,7 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [frameDuration, isPlaying, images.length]);
-
-  // Warm the browser cache with the next few frames so playback doesn't stall
-  // waiting on the network. Keeps references until the next index change.
-  useEffect(() => {
-    if (images.length === 0) return;
-    const start = Math.min(currentIndex, images.length - 1);
-    const ahead: HTMLImageElement[] = [];
-    for (let i = 1; i <= PRELOAD_AHEAD && i < images.length; i++) {
-      const img = images[(start + i) % images.length];
-      const el = new Image();
-      el.decoding = "async";
-      el.src = getAlignedImageUrl(img.id, img.content_hash, "frame");
-      ahead.push(el);
-    }
-    return () => {
-      ahead.length = 0;
-    };
-  }, [currentIndex, images]);
+  }, [frameDuration, isPlaying, images.length, readySrc, requestedSrc, visible]);
 
   // Reset index if images change or if currentIndex is out of bounds
   useEffect(() => {
@@ -148,7 +145,7 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
     setExportProgress(null);
     setError(null);
     try {
-      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress);
+      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress, selection);
       if (!mounted.current) return;
       // Trigger download via a temporary link
       const url = getVideoUrl(res.video_filename);
@@ -170,9 +167,9 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
     } finally {
       setIsGenerating(false);
     }
-  }, [frameDuration, showDates, showAge, birthday]);
+  }, [frameDuration, showDates, showAge, birthday, selection]);
 
-  if (images.length === 0) {
+  if (allImages.length === 0) {
     return (
       <div className={s.section}>
         <div className={s.header}>
@@ -210,14 +207,15 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
     
     return age >= 0 ? age : null;
   };
-  const currentDate = currentImage?.photo_taken_at
-    ? new Date(`${currentImage.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
+  const captionImage = currentImage ? displayedImage ?? currentImage : undefined;
+  const currentDate = captionImage?.photo_taken_at
+    ? new Date(`${captionImage.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",
         day: "numeric",
         year: "numeric",
       })
     : null;
-  const currentAge = showAge ? calculateAge(currentImage?.photo_taken_at || null) : null;
+  const currentAge = showAge ? calculateAge(captionImage?.photo_taken_at || null) : null;
   const canStepBackward = !isPlaying && safeIndex > 0;
   const canStepForward = !isPlaying && safeIndex < images.length - 1;
 
@@ -229,19 +227,22 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
       <div className={s.header}>
         <h2 className={forms.eyebrow}>Timelapse</h2>
         <span data-testid="frame-counter" className={s.counter}>
-          {safeIndex + 1} / {images.length}
+          {images.length ? safeIndex + 1 : 0} / {images.length}
         </span>
       </div>
 
       {/* Player: the frame sits in a dark mat, like a print */}
       <figure className={s.figure}>
         <div data-testid="timelapse-player" className={s.mat}>
+          {!images.length && <p style={{ color: "white", padding: 12 }}>No photos match this selection.</p>}
           {currentImage && (
-            <img
-              data-testid="timelapse-frame"
-              src={getAlignedImageUrl(currentImage.id, currentImage.content_hash, "frame")}
-              alt={`Frame ${safeIndex + 1}`}
-              className={s.frame}
+            <BufferedFrame
+              src={requestedSrc}
+              ahead={Array.from({ length: Math.min(PRELOAD_AHEAD, images.length - 1) }, (_, n) => {
+                const img = images[(safeIndex + n + 1) % images.length];
+                return getAlignedImageUrl(img.id, img.content_hash, "frame");
+              })}
+              alt={`Frame ${safeIndex + 1}`} className={s.frame} onReady={url => { if (url === requestedSrc) { setReadySrc(url); setDisplayedImage(currentImage); } }}
             />
           )}
         </div>
@@ -277,7 +278,7 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
           type="range"
           aria-label="Scrub frames"
           min={0}
-          max={images.length - 1}
+          max={Math.max(0, images.length - 1)}
           value={safeIndex}
           onChange={(e) => {
             const newIndex = parseInt(e.target.value, 10);
@@ -355,6 +356,10 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
         </div>
       </div>
 
+      <ExportSettings person={profileId} value={{ ...selection, duration: frameDuration, dates: showDates, age: showAge }}
+        onChange={value => { setSelection({ date_from: value.date_from, date_to: value.date_to, sampling: value.sampling });
+          setFrameDuration(value.duration); setShowDates(value.dates); setShowAge(value.age); setCurrentIndex(0); }} />
+      {selection.date_from && selection.date_to && selection.date_from > selection.date_to && <p role="alert">Start date must be before the end date.</p>}
       {/* Export */}
       <div className={s.export}>
         <dl className={s.summary}>
@@ -374,7 +379,7 @@ export default function Timelapse({ images, initialBirthday, onBirthdayChange }:
           icon="download"
           block
           onClick={handleDownload}
-          disabled={isGenerating || savingBirthday || (showAge && !birthday)}
+          disabled={!images.length || isGenerating || savingBirthday || (showAge && !birthday)}
         >
           {isGenerating ? "Generating..." : "Download Video"}
         </Button>

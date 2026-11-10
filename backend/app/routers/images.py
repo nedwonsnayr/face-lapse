@@ -118,7 +118,7 @@ async def upload_images(
             continue
 
         # Check for duplicate in database by file_hash (indexed, fast)
-        existing_image = db.query(Image).filter(Image.file_hash == file_hash, Image.profile_id == profile_id).first()
+        existing_image = db.query(Image).filter(Image.deleted_at.is_(None), Image.file_hash == file_hash, Image.profile_id == profile_id).first()
         
         if existing_image:
             # Duplicate found in database - delete temp file and skip
@@ -224,7 +224,7 @@ async def upload_images(
                     info["existing_filename"],
                 )
                 # Get the existing image to include its photo_taken_at
-                existing_image = db.query(Image).filter(Image.id == existing_id, Image.profile_id == profile_id).first()
+                existing_image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == existing_id, Image.profile_id == profile_id).first()
                 results.append({
                     "id": existing_id,  # Use existing image's ID for thumbnail display
                     "original_filename": info["existing_filename"],
@@ -281,7 +281,7 @@ async def upload_images(
     new_image_ids = [r["id"] for r in results if r.get("id") and r.get("id") > 0 and not r.get("skipped")]
     if new_image_ids:
         # Check if any of the new images are missing dates
-        images_without_dates = db.query(Image).filter(
+        images_without_dates = db.query(Image).filter(Image.deleted_at.is_(None),
             Image.id.in_(new_image_ids),
             Image.photo_taken_at.is_(None)
         ).all()
@@ -342,7 +342,7 @@ def _align_images_stream(image_ids: list[int], profile_id: int = 1) -> Generator
         for idx, image_id in enumerate(image_ids):
             t0 = time.time()
             log.info("Align: processing image_id=%d", image_id)
-            image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+            image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
             if not image or not Path(image.original_path).exists():
                 item_result = {
                     "id": image_id,
@@ -405,7 +405,7 @@ def align_images(body: AlignRequest, db: Session = Depends(get_db), profile_id: 
     if not body.image_ids:
         raise HTTPException(status_code=400, detail="No image IDs provided")
 
-    found = {i.id for i in db.query(Image).filter(Image.profile_id == profile_id, Image.id.in_(body.image_ids)).all()}
+    found = {i.id for i in db.query(Image).filter(Image.deleted_at.is_(None), Image.profile_id == profile_id, Image.id.in_(body.image_ids)).all()}
     if found != set(body.image_ids):
         raise HTTPException(status_code=404, detail="One or more photos do not belong to this person")
     log.info("Align: %d images requested", len(body.image_ids))
@@ -424,7 +424,7 @@ def _content_version(img: Image) -> str:
 @router.get("")
 def list_images(request: Request, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
     """List all images in library order (see services/ordering.py)."""
-    images = db.query(Image).filter(Image.profile_id == profile_id).all()
+    images = db.query(Image).filter(Image.deleted_at.is_(None), Image.profile_id == profile_id).all()
     images = library_order(images)
     payload = [
         {
@@ -480,7 +480,7 @@ def reorder_images(
     profile_id: int = Depends(get_profile_id),
 ):
     """Update sort_order for a batch of images to persist manual reordering."""
-    records = {img.id: img for img in db.query(Image).filter(Image.profile_id == profile_id, Image.id.in_([i.id for i in items])).all()}
+    records = {img.id: img for img in db.query(Image).filter(Image.deleted_at.is_(None), Image.profile_id == profile_id, Image.id.in_([i.id for i in items])).all()}
     if any(item.id not in records for item in items):
         raise HTTPException(status_code=404, detail="One or more photos do not belong to this person")
     for item in items:
@@ -491,27 +491,19 @@ def reorder_images(
 
 @router.delete("/no-face")
 def delete_no_face_images(db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
-    """Delete all images where no face was detected, along with their files."""
+    """Move all processed no-face images to recoverable Trash."""
     # Only images that went through alignment: staged uploads (possibly from
     # another device) also have face_detected=False and must not be deleted.
     images = (
         db.query(Image)
-        .filter(Image.profile_id == profile_id, Image.face_detected == False, Image.align_attempted == True, Image.needs_face_selection == False)  # noqa: E712
+        .filter(Image.deleted_at.is_(None), Image.profile_id == profile_id, Image.face_detected == False, Image.align_attempted == True, Image.needs_face_selection == False)  # noqa: E712
         .all()
     )
-    deleted_count = 0
+    ids = [img.id for img in images]
     for img in images:
-        for path_str in [img.original_path, img.aligned_path]:
-            if path_str:
-                p = Path(path_str)
-                if p.exists():
-                    p.unlink()
-        resize.purge(img.id)
-        db.delete(img)
-        deleted_count += 1
+        img.deleted_at = datetime.utcnow()
     db.commit()
-    log.info("Dismissed %d no-face images", deleted_count)
-    return {"deleted": deleted_count}
+    return {"deleted": len(ids), "image_ids": ids}
 
 
 _SIZE_QUERY = Query(
@@ -559,29 +551,20 @@ def get_original_image(image_id: int, size: str = _SIZE_QUERY, db: Session = Dep
 
 @router.delete("/{image_id}")
 def delete_image(image_id: int, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
-    """Delete an image and its files from the library."""
-    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+    """Move an image to Trash without removing its files."""
+    image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    # Delete files
-    for path_str in [image.original_path, image.aligned_path]:
-        if path_str:
-            p = Path(path_str)
-            if p.exists():
-                p.unlink()
-
-    resize.purge(image_id)
-    db.delete(image)
+    image.deleted_at = datetime.utcnow()
     db.commit()
-    log.info("Deleted image %d (%s)", image_id, image.original_filename)
     return {"deleted": True, "id": image_id}
 
 
 @router.patch("/{image_id}/toggle")
 def toggle_image_inclusion(image_id: int, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
     """Toggle whether an image is included in video generation."""
-    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+    image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
@@ -593,7 +576,7 @@ def toggle_image_inclusion(image_id: int, db: Session = Depends(get_db), profile
 @router.post("/{image_id}/realign")
 def realign_image(image_id: int, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
     """Re-run face alignment on an existing image."""
-    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+    image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     if not Path(image.original_path).exists():
@@ -617,7 +600,7 @@ def realign_image(image_id: int, db: Session = Depends(get_db), profile_id: int 
 @router.post("/{image_id}/faces")
 def discover_faces(image_id: int, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
     """Return stable candidates for the picker; keep an existing alignment until confirmed."""
-    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+    image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
     if not image or not Path(image.original_path).is_file():
         raise HTTPException(status_code=404, detail="Original image not found")
     if not image.face_candidates:
@@ -640,7 +623,7 @@ class FaceSelection(BaseModel):
 
 @router.post("/{image_id}/select-face")
 def select_face(image_id: int, body: FaceSelection, db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
-    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id).first()
+    image = db.query(Image).filter(Image.deleted_at.is_(None), Image.id == image_id, Image.profile_id == profile_id).first()
     if not image or not Path(image.original_path).is_file():
         raise HTTPException(status_code=404, detail="Original image not found")
     if body.face_index >= len(image.face_candidates or []):

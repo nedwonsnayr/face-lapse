@@ -180,3 +180,13 @@ Upload limit: Cloudflare caps a single request at 100 MB. The app sends uploads 
 - **healthchecks.io email "backup is down":** check `/var/log/face-lapse-backup.log` and test the B2 keys with `restic snapshots`.
 - **Oracle reclaimed or stopped the VM:** start it from the console. If it's gone, follow section 4.
 - **Rotate the tunnel token:** Zero Trust → Tunnels → face-lapse → *Refresh token*, update `.env`, then `docker compose up -d`.
+
+## Archive experience rollout (migration 009)
+
+Migration 009 adds nullable `images.deleted_at` and a `(profile_id, deleted_at)` index; it does not move or rewrite photos. Trash is retained indefinitely and included in nightly backups. Only the explicit permanent-delete action removes original/aligned files. Copying between people uses independent UUID-named files, increasing disk usage accordingly.
+
+The existing root cron invokes the checked-out `scripts/backup.sh`. It now records `data/backup-status.json` atomically via `scripts/backup-status.py` (Python 3, already installed on the host). The file contains only attempt/success times and state, is readable by the app container, and never contains credentials. Success is recorded only after backup, retention and the integrity check all complete. A failure preserves the previous success timestamp. An interrupted run remains an unfinished attempt; the UI reports this without claiming completion. The UI reports unknown until the first recorded attempt and overdue after 36 hours without success. Existing healthchecks.io alerts remain in place.
+
+Roll forward for application issues where possible. Old code ignores `deleted_at` and would show trashed photos again; it also uses hard deletion. Do not drop the column or restore an older database over new uploads as an application rollback. Keep a pre-deploy database backup and the current originals/aligned files. Rollback of frontend-only issues should retain the new backend lifecycle semantics.
+
+Verify after merging: active photos/timelapse load; Trash and Restore preserve a test photo; date/sample export count matches preview; new backups update Archive health. Inspect logs for pool timeouts or copy/backup errors. Run fixture-based checks without mutating the owner's real photos.

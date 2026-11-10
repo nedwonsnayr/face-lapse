@@ -1,0 +1,11 @@
+# Archive experience — QA, 2026-11-09
+
+Passed: 44 backend tests (3.705s), final complete 61 Chromium tests (1.5m), TypeScript/Vite production build, shell syntax and diff whitespace checks. The backup-status edge-case test also passed after adding corrupt-metadata tolerance. Full browser log: /private/tmp/archive-e2e-release.log. Backend log: /private/tmp/archive-backend-final.log.
+
+New coverage: 80 concurrent photo requests retained from pool recovery; trash/restore/permanent deletion and active-query exclusions; invalid/mixed-person batches; independent original/aligned copies and move conflicts; failed copy cleanup; duplicate restore conflict; scoped file inventory and unknown/failed backup metadata; calendar export sampling/date validation; idempotent migration; atomic status recording preserving last success. Browser checks cover date filtering independent from playback, bulk trash undo, permanent-delete confirmation, copy/move, comparison slider, saved export presets/request parameters, slow-frame hold with matching caption, thumbnail retry, explicit failed-frame retry, empty export recovery, 1,200-photo bounded grid/list and reaching the final row, drag/reorder, camera countdown cancellation/capture confirmation, and phone/desktop overflow.
+
+Migration009 was applied twice to a disposable copy of the 1,035-row local database (including prerequisite profile migration). All pre-existing fields and rows matched byte-for-value; SQLite integrity check passed; elapsed 0.004s. Live DB/files were not modified.
+
+Visual review: current paper/Fraunces/Inter design preserved. Checked archive-phone.png (390px) and archive-desktop.png (1440px), real fixture images, gallery navigation, then/now and expandable tools. No horizontal overflow. Temporary test-server cleanup experiment interrupted two full runs; reverted it, then all 61 tests passed using the original harness. Explicitly stop remaining identified fixture server PIDs before handoff.
+
+Limits: Chromium verified; no native mobile Safari run. Backup reporter unit-tested; actual B2 run will be observed after merge/nightly cron. Archive health checks presence, not file integrity or restore viability. Presets local per person/device. Trash retained indefinitely. No production deployment yet.

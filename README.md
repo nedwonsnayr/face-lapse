@@ -84,3 +84,13 @@ All data is stored in the `data/` directory (git-ignored):
 Use **Add person** beside the person tabs to start another library. Each person has separate uploads, face choices, ordering, birthday and exports under your existing login. **Edit person** changes their name or optional birthday. The selected tab is remembered on each device; unfinished uploads return to that person's staging tray.
 
 Existing photos stay in **Ryan** when migration 008 runs. The migration adds ownership in SQLite without moving photo files. Backups include every person's data automatically. Profiles are collections for the same owner, not separate user accounts.
+
+### Working with a long archive
+
+- **Library:** Jump to a year/month, filter dates, or search the original filename. Grid and list views render only nearby rows, keeping large archives responsive. Library filters do not change the timelapse.
+- **Capture:** Use the previous selfie as a faint framing guide and choose an off/3/5-second timer. Closing the camera cancels the countdown. The guide is never included in the saved photo.
+- **Trash:** Deleting or dismissing no-face photos moves them to Trash. Undo the latest trash action or open Trash to restore a photo. There is no automatic expiry; permanent deletion requires confirmation. Cancelled staged uploads also remain recoverable in Trash.
+- **People:** Use Select photos to move or copy photos to another person. Copies have independent files and alignment choices. A destination duplicate stops the whole selection without changing anything.
+- **Then & now:** Compare any two aligned photos side by side or with an adjustable slider.
+- **Exports:** Expand Choose photos & export presets to select a date range or one photo per day/week/month. The preview and export use the same selection; sampling chooses the earliest dated photo in each period (weeks begin Monday). Presets remember selection, speed and caption choices on this device for this person.
+- **Archive health:** Check file presence, pending alignment, face choices and Trash counts on demand. Backup status reports the last recorded successful run for the whole archive, and flags it overdue after 36 hours. Until the updated backup script runs, status is explicitly unknown. A file-presence check is not a backup restore test.

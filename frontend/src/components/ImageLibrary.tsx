@@ -1,5 +1,9 @@
 import { useProfileApi } from "../ProfileContext";
-import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { archiveRequest } from "../archiveApi";
+import { Profile } from "../api";
+import WindowedLibrary from "./WindowedLibrary";
+import ResilientImage from "./ResilientImage";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DndContext,
   closestCenter,
@@ -26,6 +30,7 @@ import s from "./ImageLibrary.module.css";
 
 interface ImageLibraryProps {
   images: ImageRecord[];
+  profiles: Profile[];
   recentUploadIds: Set<number>;
   onRefresh: () => void;
   onChooseFace: (id: number) => void;
@@ -48,15 +53,6 @@ const formatRowDate = (iso: string | null): string | null =>
 
 export type LibraryView = "grid" | "list";
 const VIEW_STORAGE_KEY = "face-lapse:library-view";
-
-/*
- * Switching views swaps every card for a row (~1,000 of them), which blocks the
- * main thread long enough to freeze the timelapse player. After a switch we
- * render the first screenful at once and the rest in small batches, yielding
- * between them so the player keeps getting frames.
- */
-const FIRST_BATCH = 30;
-const NEXT_BATCH = 20;
 
 function loadView(): LibraryView {
   try {
@@ -83,6 +79,8 @@ interface CardActionsProps {
   onToggle: (id: number) => void;
   onRealign: (id: number) => void;
   onChooseFace: (id: number) => void;
+  selectedIds?: Set<number>;
+  onSelect?: (id: number) => void;
 }
 
 /*
@@ -103,7 +101,7 @@ const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelet
     <>
       <div className={s.thumbWrap}>
         {img.has_aligned ? (
-          <img
+          <ResilientImage
             src={getAlignedImageUrl(img.id, img.content_hash, "thumb")}
             alt={date ? `Photo from ${date}` : img.original_filename}
             className={s.thumbnail}
@@ -205,7 +203,7 @@ const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete,
     <>
       <div className={s.rowThumb}>
         {img.has_aligned ? (
-          <img
+          <ResilientImage
             src={getAlignedImageUrl(img.id, img.content_hash, "thumb")}
             alt={date ? `Photo from ${date}` : img.original_filename}
             loading="lazy"
@@ -265,6 +263,10 @@ const SortableCard = memo(function SortableCard({ testIdPrefix = "image-card", l
       )}
       data-testid={`${testIdPrefix}-${img.id}`}
     >
+      {props.onSelect && <label className={isList ? s.rowSelect : s.cardSelect}>
+        <input type="checkbox" aria-label={`Select photo ${img.source_filename || img.original_filename}`}
+          checked={props.selectedIds?.has(img.id) ?? false} onChange={() => props.onSelect?.(img.id)} />
+      </label>}
       {isList && handle}
       <Body {...props} />
       {!isList && handle /* absolutely positioned over the photo */}
@@ -285,6 +287,10 @@ const StaticCard = memo(function StaticCard({ layout, ...props }: CardActionsPro
       )}
       data-testid={`previous-image-card-${img.id}`}
     >
+      {props.onSelect && <label className={isList ? s.rowSelect : s.cardSelect}>
+        <input type="checkbox" aria-label={`Select photo ${img.source_filename || img.original_filename}`}
+          checked={props.selectedIds?.has(img.id) ?? false} onChange={() => props.onSelect?.(img.id)} />
+      </label>}
       <Body {...props} />
     </div>
   );
@@ -302,12 +308,13 @@ function useStableCallback<A extends unknown[], R>(fn: (...args: A) => R): (...a
 export default function ImageLibrary({
   images,
   recentUploadIds,
+  profiles,
   onRefresh,
   onChooseFace,
   onDismissRecent,
   onDraggingChange,
 }: ImageLibraryProps) {
-  const { getOriginalImageUrl, deleteImage, toggleImage, reorderImages, deleteNoFaceImages, realignImage } = useProfileApi();
+  const { profileId, getOriginalImageUrl, deleteImage, toggleImage, reorderImages, deleteNoFaceImages, realignImage } = useProfileApi();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
   const [previousCollapsed, setPreviousCollapsed] = useState(false);
@@ -317,38 +324,55 @@ export default function ImageLibrary({
   const [librarySearch, setLibrarySearch] = useState("");
   const [sortAscending, setSortAscending] = useState(true);
   const [view, setViewState] = useState<LibraryView>(loadView);
-  // How many items each section renders; Infinity = all (first load).
-  const [renderLimit, setRenderLimit] = useState(Infinity);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [month, setMonth] = useState("");
+  const [selecting, setSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set<number>());
+  const [destination, setDestination] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [undoIds, setUndoIds] = useState<number[]>([]);
+  const [dragging, setDragging] = useState(false);
   const setView = (next: LibraryView) => {
-    if (next === view) return;
     setViewState(next);
-    setRenderLimit(FIRST_BATCH); // same render as the view change, so it never mounts everything at once
+    try { localStorage.setItem(VIEW_STORAGE_KEY, next); } catch { /* unavailable */ }
+  };
+  const selectPhoto = useStableCallback((id: number) => setSelectedIds(old => {
+    const next = new Set(old); next.has(id) ? next.delete(id) : next.add(id); return next;
+  }));
+  useEffect(() => setSelectedIds(old => new Set([...old].filter(id => images.some(p => p.id === id)))), [images]);
+  const batchAction = async (path: string, extra = {}) => {
+    setBusy(true); setNotice("");
+    const ids = [...selectedIds];
     try {
-      localStorage.setItem(VIEW_STORAGE_KEY, next);
-    } catch {
-      /* private mode etc.: the choice just isn't remembered */
-    }
+      await archiveRequest(profileId, path, "POST", { image_ids: ids, ...extra });
+      if (path === "trash") setUndoIds(ids);
+      setNotice(path === "trash" ? `${ids.length} photos moved to Trash.` : `${ids.length} photos ${path === "transfer" ? "transferred" : "restored"}.`);
+      setSelectedIds(new Set()); onRefresh();
+    } catch (err) { setNotice(err instanceof Error ? err.message : "Action failed"); }
+    finally { setBusy(false); }
+  };
+  const undo = async () => {
+    setBusy(true);
+    try { await archiveRequest(profileId, "restore", "POST", { image_ids: undoIds }); setUndoIds([]); setNotice("Photos restored."); onRefresh(); }
+    catch (err) { setNotice(err instanceof Error ? err.message : "Could not restore photos"); }
+    finally { setBusy(false); }
   };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
-  useEffect(() => {
-    if (renderLimit >= images.length) return;
-    // A transition, so the player's frame updates can interrupt a batch.
-    const t = setTimeout(() => startTransition(() => setRenderLimit((n) => n + NEXT_BATCH)), 0);
-    return () => clearTimeout(t);
-  }, [renderLimit, images.length]);
-
   const handleDelete = useStableCallback(async (id: number) => {
-    if (!confirm("Delete this image?")) return;
+    if (!confirm("Move this photo to Trash? You can restore it later.")) return;
     setDeletingId(id);
     try {
       await deleteImage(id);
+      setUndoIds([id]); setNotice("Photo moved to Trash.");
       onRefresh();
     } catch (err) {
-      console.error("Delete failed:", err);
+      setNotice(err instanceof Error ? err.message : "Could not move photo to Trash");
     } finally {
       setDeletingId(null);
     }
@@ -413,10 +437,11 @@ export default function ImageLibrary({
   });
 
   const handleDismissNoFace = async () => {
-    if (!confirm("Delete all images where no face was detected?")) return;
+    if (!confirm("Move all photos with no detected face to Trash? You can restore them later.")) return;
     setDismissingNoFace(true);
     try {
-      await deleteNoFaceImages();
+      const result = await deleteNoFaceImages();
+      setUndoIds(result.image_ids); setNotice(`${result.deleted} photos moved to Trash.`);
       onRefresh();
     } catch (err) {
       console.error("Failed to dismiss no-face images:", err);
@@ -437,12 +462,16 @@ export default function ImageLibrary({
 
   // Filter and sort previous images
   const previousImagesFiltered = previousImagesRaw.filter((img) => {
+    const day = img.photo_taken_at?.slice(0, 10) ?? "";
+    if (month && !day.startsWith(month)) return false;
+    if (dateFrom && (!day || day < dateFrom)) return false;
+    if (dateTo && (!day || day > dateTo)) return false;
     if (!librarySearch) return true;
     
     const searchLower = librarySearch.toLowerCase();
     
     // Search in filename
-    if (img.original_filename.toLowerCase().includes(searchLower)) {
+    if (`${img.original_filename} ${img.source_filename ?? ""} ${img.photo_taken_at ?? ""}`.toLowerCase().includes(searchLower)) {
       return true;
     }
     
@@ -467,44 +496,24 @@ export default function ImageLibrary({
     onToggle: handleToggle,
     onRealign: handleRealign,
     onChooseFace,
+    selectedIds,
+    onSelect: selecting ? selectPhoto : undefined,
   };
 
   const renderSortableGrid = (list: ImageRecord[], enableDrag: boolean = true, testIdPrefix: string = "image-card") => {
-    const visible = list.length > renderLimit ? list.slice(0, renderLimit) : list;
-    if (!enableDrag) {
-      // Non-sortable grid (search active: reordering a filtered subset would be ambiguous)
-      return (
-        <div className={view === "list" ? s.list : s.grid}>
-          {visible.map((img) => (
-            <StaticCard key={img.id} img={img} {...cardProps} layout={view} />
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={() => onDraggingChange?.(true)}
-        onDragCancel={() => onDraggingChange?.(false)}
-        onDragEnd={(e) => {
-          onDraggingChange?.(false);
-          handleDragEnd(e);
-        }}
-      >
-        <SortableContext
-          items={list.map((img) => img.id)} // all ids, even before they render: keeps the context stable across batches
-          strategy={view === "list" ? verticalListSortingStrategy : rectSortingStrategy}
-        >
-          <div className={view === "list" ? s.list : s.grid} data-testid="library-items" data-view={view}>
-            {visible.map((img) => (
-              <SortableCard key={img.id} img={img} {...cardProps} testIdPrefix={testIdPrefix} layout={view} />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-    );
+    const content = <WindowedLibrary items={list} view={view} className={view === "list" ? s.list : s.grid} frozen={dragging}
+      render={img => enableDrag && !selecting
+        ? <SortableCard img={img} {...cardProps} testIdPrefix={testIdPrefix} layout={view} />
+        : <StaticCard img={img} {...cardProps} layout={view} />} />;
+    if (!enableDrag || selecting) return content;
+    return <DndContext sensors={sensors} collisionDetection={closestCenter}
+      onDragStart={() => { setDragging(true); onDraggingChange?.(true); }}
+      onDragCancel={() => { setDragging(false); onDraggingChange?.(false); }}
+      onDragEnd={e => { setDragging(false); onDraggingChange?.(false); handleDragEnd(e); }}>
+      <SortableContext items={list.map(img => img.id)} strategy={view === "list" ? verticalListSortingStrategy : rectSortingStrategy}>
+        {content}
+      </SortableContext>
+    </DndContext>;
   };
 
   const groupToggle = (
@@ -548,6 +557,20 @@ export default function ImageLibrary({
         </div>
       </div>
 
+      {notice && <p role="status" className={s.notice}>{notice} {undoIds.length > 0 && <Button disabled={busy} onClick={undo}>Undo trash</Button>}</p>}
+      {images.length > 0 && <div className={s.archiveControls}>
+        <Button aria-pressed={selecting} onClick={() => { setSelecting(!selecting); setSelectedIds(new Set()); }}>{selecting ? "Done selecting" : "Select photos"}</Button>
+        {selecting && <>
+          <span>{selectedIds.size} selected{selectedIds.size > 1000 ? " · Select up to 1,000 at a time" : ""}</span>
+          <Button onClick={() => setSelectedIds(new Set(previousImages.slice(0, 1000).map(p => p.id)))}>{previousImages.length > 1000 ? "Select first 1,000 filtered photos" : "Select filtered photos"}</Button>
+          <Button disabled={busy || !selectedIds.size || selectedIds.size > 1000} onClick={() => batchAction("trash")}>Move to Trash</Button>
+          <select className={forms.field} aria-label="Destination person" value={destination} onChange={e => setDestination(e.target.value)}>
+            <option value="">Choose person…</option>{profiles.filter(p => p.id !== profileId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+          {(["move", "copy"] as const).map(mode => <Button key={mode} disabled={busy || !selectedIds.size || selectedIds.size > 1000 || !destination}
+            onClick={() => batchAction("transfer", { mode, target_profile_id: Number(destination) })}>{mode === "move" ? "Move to person" : "Copy to person"}</Button>)}
+        </>}
+      </div>}
       {images.length === 0 ? (
         <div className={s.empty}>
           <p data-testid="empty-library-message" className={s.emptyText}>
@@ -584,26 +607,17 @@ export default function ImageLibrary({
                   <p className={s.groupHint}>
                     These photos couldn't be aligned and won't appear in the timelapse.
                   </p>
-                  <div className={s.grid}>
-                    {noFaceImages.map((img) => (
-                      <div key={img.id} className={cx(s.card, s.noFaceCard)} data-testid={`no-face-card-${img.id}`}>
+                  <WindowedLibrary items={noFaceImages} view="grid" className={s.grid} frozen={false} render={img => (
+                      <div className={cx(s.card, s.noFaceCard)} data-testid={`no-face-card-${img.id}`}>
                         <div className={s.thumbWrap}>
-                          <img
-                            src={getOriginalImageUrl(img.id, img.content_hash, "thumb")}
-                            alt={img.original_filename}
-                            className={s.thumbnail}
-                            loading="lazy"
-                            decoding="async"
-                          />
+                          <ResilientImage src={getOriginalImageUrl(img.id, img.content_hash, "thumb")} alt={img.original_filename}
+                            className={s.thumbnail} loading="lazy" decoding="async" />
                         </div>
-                        <div className={s.cardFooter}>
-                          <span className={s.date} title={img.original_filename}>
-                            {img.original_filename}
-                          </span>
-                        </div>
+                        {selecting && <label className={s.cardSelect}><input type="checkbox"
+                          aria-label={`Select photo ${img.source_filename || img.original_filename}`} checked={selectedIds.has(img.id)} onChange={() => selectPhoto(img.id)} /></label>}
+                        <div className={s.cardFooter}><span className={s.date} title={img.original_filename}>{img.original_filename}</span></div>
                       </div>
-                    ))}
-                  </div>
+                  )} />
                 </>
               )}
             </div>
@@ -680,8 +694,19 @@ export default function ImageLibrary({
                       ))}
                     </div>
                   </div>
+                  <div className={s.archiveControls}>
+                    <label>Jump to <select className={forms.field} aria-label="Jump to year or month" value={month} onChange={e => setMonth(e.target.value)}>
+                      <option value="">All years</option>
+                      {[...new Set(faceImages.flatMap(p => p.photo_taken_at ? [p.photo_taken_at.slice(0, 4), p.photo_taken_at.slice(0, 7)] : []))].sort().map(value => <option key={value} value={value}>{value}</option>)}
+                    </select></label>
+                    <label>From <input className={forms.field} type="date" aria-label="Library start date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} /></label>
+                    <label>To <input className={forms.field} type="date" aria-label="Library end date" value={dateTo} onChange={e => setDateTo(e.target.value)} /></label>
+                    {(month || dateFrom || dateTo) && <Button onClick={() => { setMonth(""); setDateFrom(""); setDateTo(""); }}>Clear dates</Button>}
+                    <span>{previousImages.length} photos</span>
+                  </div>
+                  {dateFrom && dateTo && dateFrom > dateTo && <p role="alert">Start date must be before the end date.</p>}
                   {previousImages.length > 0 ? (
-                    renderSortableGrid(previousImages, !librarySearch, "previous-image-card")
+                    renderSortableGrid(previousImages, !librarySearch && !month && !dateFrom && !dateTo, "previous-image-card")
                   ) : (
                     <div data-testid="previous-no-results" className={s.noResults}>
                       No images match your filters
