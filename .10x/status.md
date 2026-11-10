@@ -1,3 +1,9 @@
+# Archive experience — PR24 ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/24 (open, mergeable). GitHub CI running as of publication; no success claim yet. All eight approved areas implemented, 44 backend and 61 browser tests passed locally, build and migration preservation verified. Test server ports5111/8111 are stopped; no background watcher remains. No merge/deployment or production data writes. Merge uses existing main deployment. Backup status will populate after the updated nightly script records a run; Trash has no expiry; presets per person/device. Runbook and reviews linked below in history.
+
+## Previous history
+
 # Archive experience — verified, preparing PR
 
 All eight approved improvements implemented. 44 backend and 61 browser tests passed; build/syntax/diff clean. Read-only copy migration preserved all 1,035 original rows and fields. QA/security and operational handoffs recorded. Await reviewed PR/main deployment; no production mutations. Backup UI stays unknown until the updated cron records its first run. Presets local; no automatic Trash purge.
