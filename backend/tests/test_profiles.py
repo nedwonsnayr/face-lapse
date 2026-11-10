@@ -354,3 +354,125 @@ class ProfileTests(unittest.TestCase):
                 self.assertEqual(conn.execute(text('SELECT count(*) FROM images WHERE deleted_at IS NULL')).scalar(), 1045)
                 self.assertEqual(conn.execute(text('PRAGMA integrity_check')).scalar(), 'ok')
             engine.dispose()
+
+    def test_undated_upload_uses_upload_time_despite_large_archive_gaps(self):
+        from datetime import datetime, timezone
+        from backend.app.models import Image
+        first = self.upload(1, 'face_1.jpg')['id']
+        second = self.upload(1, 'face_2.jpg')['id']
+        with self.sessions() as db:
+            db.get(Image, first).photo_taken_at = datetime(1900, 1, 1)
+            db.get(Image, second).photo_taken_at = datetime(2000, 1, 1)
+            db.commit()
+        instant = datetime(2026, 11, 10, 0, 41, 26, tzinfo=timezone.utc)
+        class Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return instant.astimezone(tz) if tz else instant.replace(tzinfo=None)
+        with patch('backend.app.routers.images.datetime', Clock):
+            response = self.client.post('/api/images/upload', data={'timezone': 'America/New_York'}, files={
+                'files': ('image.jpeg', (self.fixtures / 'face_3.jpg').read_bytes(), 'image/jpeg')})
+        self.assertEqual(response.status_code, 200, response.text)
+        uploaded = response.json()[0]
+        self.assertEqual(uploaded['photo_taken_at'], '2026-11-09T19:41:26')
+        self.assertEqual(uploaded['date_source'], 'upload')
+        listed = next(i for i in self.client.get('/api/images').json() if i['id'] == uploaded['id'])
+        self.assertEqual(listed['photo_taken_at'], uploaded['photo_taken_at'])
+        self.assertEqual(listed['created_at'], '2026-11-10T00:41:26')
+        with self.sessions() as db:
+            self.assertEqual(db.get(Image, first).photo_taken_at, datetime(1900, 1, 1))
+            self.assertEqual(db.get(Image, second).photo_taken_at, datetime(2000, 1, 1))
+
+    def test_exif_wins_and_camera_filename_uses_local_calendar(self):
+        from PIL import Image as PILImage
+        from io import BytesIO
+        with PILImage.open(self.fixtures / 'face_1.jpg') as photo:
+            exif = photo.getexif()
+            exif[36867] = '2015:07:04 09:30:00'
+            output = BytesIO()
+            photo.save(output, format='JPEG', exif=exif)
+        response = self.client.post('/api/images/upload', data={'timezone': 'America/New_York'}, files={
+            'files': ('2020-01-01.jpg', output.getvalue(), 'image/jpeg')})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()[0]['photo_taken_at'], '2015-07-04T09:30:00')
+        self.assertEqual(response.json()[0]['date_source'], 'exif')
+        for name, fixture, expected in [
+            ('webcam-2026-11-10T00-00-09-271Z.jpg', 'face_2.jpg', '2026-11-09T19:00:09.271000'),
+            ('2020-08-19.jpg', 'face_3.jpg', '2020-08-19T00:00:00'),
+        ]:
+            response = self.client.post('/api/images/upload', data={'timezone': 'America/New_York'}, files={
+                'files': (name, (self.fixtures / fixture).read_bytes(), 'image/jpeg')})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()[0]['photo_taken_at'], expected)
+            self.assertEqual(response.json()[0]['date_source'], 'filename')
+
+    def test_invalid_timezone_rejects_upload_before_writing_files(self):
+        before = set((self.root / 'originals').iterdir())
+        for zone in ('Not/AZone', '../UTC', '/etc/passwd'):
+            response = self.client.post('/api/images/upload', data={'timezone': zone}, files={
+                'files': ('image.jpg', (self.fixtures / 'face_1.jpg').read_bytes(), 'image/jpeg')})
+            self.assertEqual(response.status_code, 422, response.text)
+        self.assertEqual(set((self.root / 'originals').iterdir()), before)
+        self.assertEqual(self.client.get('/api/images').json(), [])
+
+    def test_manual_date_and_reset_are_scoped_and_preserve_photo_bytes(self):
+        from datetime import datetime
+        from backend.app.models import Image
+        image = self.upload()['id']
+        endpoint = f'/api/images/{image}/date'
+        with self.sessions() as db:
+            photo = db.get(Image, image)
+            photo.created_at = datetime(2026, 11, 10, 0, 41, 26)
+            original = Path(photo.original_path).read_bytes()
+            db.commit()
+        initial = self.client.get('/api/images')
+        etag = initial.headers['etag']
+        content_hash = initial.json()[0]['content_hash']
+        for body in ({}, {'date': '2026-02-30'}, {'date': '2026-13-01'}, {'date': '2026-1-1'},
+                     {'mode': 'upload', 'date': '2020-01-01'}, {'date': '2020-01-01', 'timezone': 'nope'}):
+            self.assertEqual(self.client.patch(endpoint, json=body).status_code, 422)
+        self.assertEqual(self.client.patch(f'{endpoint}?profile_id={self.other}', json={'date': '2010-02-03'}).status_code, 404)
+        self.assertEqual(self.client.get('/api/images', headers={'if-none-match': etag}).status_code, 304)
+        response = self.client.patch(endpoint, json={'date': '2010-02-03'})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['date_source'], 'manual')
+        self.assertEqual(response.json()['photo_taken_at'], '2010-02-03T00:00:00')
+        self.assertEqual(self.client.get('/api/images', headers={'if-none-match': etag}).status_code, 200)
+        response = self.client.patch(endpoint, json={'mode': 'upload', 'timezone': 'America/New_York'})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['photo_taken_at'], '2026-11-09T19:41:26')
+        self.assertEqual(response.json()['date_source'], 'upload')
+        self.assertEqual(self.client.get('/api/images').json()[0]['content_hash'], content_hash)
+        with self.sessions() as db:
+            self.assertEqual(Path(db.get(Image, image).original_path).read_bytes(), original)
+        self.client.delete(f'/api/images/{image}')
+        self.assertEqual(self.client.patch(endpoint, json={'date': '2020-01-01'}).status_code, 404)
+
+    def test_date_source_migration_retains_all_legacy_values(self):
+        migration = importlib.import_module('migrations.010_add_date_source')
+        engine = create_engine('sqlite://')
+        try:
+            with engine.connect() as conn:
+                conn.execute(text('CREATE TABLE images (id INTEGER PRIMARY KEY, photo_taken_at DATETIME, original_path TEXT)'))
+                conn.execute(text("INSERT INTO images VALUES (1, '2001-02-03 00:00:00', '/original.jpg'), (2, NULL, '/unknown.jpg')"))
+                conn.commit()
+                before = conn.execute(text('SELECT * FROM images ORDER BY id')).all()
+                migration.up(conn)
+                migration.up(conn)
+                self.assertEqual(conn.execute(text('SELECT id, photo_taken_at, original_path FROM images ORDER BY id')).all(), before)
+                self.assertEqual(conn.execute(text('SELECT date_source FROM images')).all(), [('legacy',), ('legacy',)])
+        finally:
+            engine.dispose()
+
+    def test_timezone_conversion_handles_dst_and_old_utc_clients(self):
+        from datetime import datetime
+        from backend.app.services.photo_dates import local_upload_time, upload_zone, webcam_date
+        zone = upload_zone('America/New_York')
+        self.assertEqual(local_upload_time(datetime(2026, 7, 1, 3), zone), datetime(2026, 6, 30, 23))
+        self.assertEqual(local_upload_time(datetime(2026, 11, 1, 5, 30), zone), datetime(2026, 11, 1, 1, 30))
+        self.assertEqual(local_upload_time(datetime(2026, 11, 1, 6, 30), zone), datetime(2026, 11, 1, 1, 30))
+        self.assertIsNone(webcam_date('webcam-2026-02-30T00-00-00-000Z.jpg', zone))
+        uploaded = self.upload()
+        listed = self.client.get('/api/images').json()[0]
+        self.assertEqual(uploaded['photo_taken_at'], listed['created_at'])
+        self.assertEqual(uploaded['date_source'], 'upload')

@@ -6,13 +6,13 @@ import logging
 import re
 import time
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Generator, List
+from typing import Generator, List, Literal
 
 log = logging.getLogger("face-lapse.images")
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -22,7 +22,7 @@ from ..models import Image
 from ..config import ORIGINALS_DIR, ALIGNED_DIR, numeric_filename_key
 from ..services.ordering import library_order
 from ..services.alignment import align_image, detect_faces, extract_exif_date, parse_date_from_filename
-from ..utils.date_interpolation import interpolate_and_store_dates
+from ..services.photo_dates import local_upload_time, upload_zone, webcam_date
 from ..services import resize
 from .profiles import get_profile_id
 
@@ -65,6 +65,7 @@ def _calculate_file_hash(filepath: Path) -> str:
 @router.post("/upload")
 async def upload_images(
     files: list[UploadFile] = File(...),
+    client_timezone: str = Form("UTC", alias="timezone", max_length=128),
     db: Session = Depends(get_db),
     profile_id: int = Depends(get_profile_id),
 ):
@@ -75,6 +76,9 @@ async def upload_images(
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files provided")
+
+    zone = upload_zone(client_timezone)
+    uploaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     log.info("Upload request: %d file(s) — %s", len(files), [f.filename for f in files])
 
@@ -149,19 +153,27 @@ async def upload_images(
         # Extract date: try EXIF first, then parse from filename
         exif_date_str = extract_exif_date(str(temp_path))
         photo_taken_at = None
+        date_source = "exif"
         if exif_date_str:
             try:
                 photo_taken_at = datetime.fromisoformat(exif_date_str)
             except ValueError:
                 pass
         if photo_taken_at is None:
-            photo_taken_at = parse_date_from_filename(source_filename)
+            date_source = "filename"
+            photo_taken_at = webcam_date(source_filename, zone) or parse_date_from_filename(source_filename)
+        if photo_taken_at is None:
+            date_source = "upload"
+            photo_taken_at = local_upload_time(uploaded_at, zone)
+        elif photo_taken_at.tzinfo:
+            photo_taken_at = photo_taken_at.astimezone(zone).replace(tzinfo=None)
 
         saved_files.append({
             "temp_path": str(temp_path),
             "source_filename": source_filename,
             "ext": ext,
             "photo_taken_at": photo_taken_at,
+            "date_source": date_source,
             "file_hash": file_hash,
             "duplicate": False,
         })
@@ -230,6 +242,7 @@ async def upload_images(
                     "original_filename": info["existing_filename"],
                     "source_filename": info["source_filename"],
                     "photo_taken_at": existing_image.photo_taken_at.isoformat() if existing_image and existing_image.photo_taken_at else None,
+                    "date_source": existing_image.date_source if existing_image else "legacy",
                     "skipped": True,
                     "existing_id": existing_id,
                 })
@@ -247,6 +260,8 @@ async def upload_images(
             original_path=str(original_path),
             aligned_path=None,
             photo_taken_at=info["photo_taken_at"],
+            date_source=info["date_source"],
+            created_at=uploaded_at,
             face_detected=False,
             included_in_video=False,
             file_hash=info["file_hash"],
@@ -265,6 +280,7 @@ async def upload_images(
             "original_filename": image.original_filename,
             "source_filename": image.source_filename,
             "photo_taken_at": image.photo_taken_at.isoformat() if image.photo_taken_at else None,
+            "date_source": image.date_source,
             "content_hash": _content_version(image),
             "skipped": False,  # Explicitly mark as not skipped
         })
@@ -276,21 +292,6 @@ async def upload_images(
         log.info("Saved %d originals, skipped %d duplicates (not yet aligned)", saved_count, skipped_count)
     else:
         log.info("Saved %d originals (not yet aligned)", saved_count)
-    
-    # Interpolate dates for any newly saved images missing photo_taken_at
-    new_image_ids = [r["id"] for r in results if r.get("id") and r.get("id") > 0 and not r.get("skipped")]
-    if new_image_ids:
-        # Check if any of the new images are missing dates
-        images_without_dates = db.query(Image).filter(Image.deleted_at.is_(None),
-            Image.id.in_(new_image_ids),
-            Image.photo_taken_at.is_(None)
-        ).all()
-        
-        if images_without_dates:
-            # Interpolate dates for images missing them
-            updated_count = interpolate_and_store_dates(db, [img.id for img in images_without_dates], profile_id=profile_id)
-            if updated_count > 0:
-                log.info("Interpolated dates for %d newly uploaded images", updated_count)
     
     # Log the response structure for debugging
     log.info("Upload response: %d results", len(results))
@@ -435,6 +436,7 @@ def list_images(request: Request, db: Session = Depends(get_db), profile_id: int
             "face_detected": img.face_detected,
             "included_in_video": img.included_in_video,
             "photo_taken_at": img.photo_taken_at.isoformat() if img.photo_taken_at else None,
+            "date_source": img.date_source,
             "created_at": img.created_at.isoformat() if img.created_at else None,
             "has_aligned": img.aligned_path is not None,
             "sort_order": img.sort_order,
@@ -466,6 +468,42 @@ def list_images(request: Request, db: Session = Depends(get_db), profile_id: int
         media_type="application/json",
         headers={"ETag": etag},
     )
+
+
+class PhotoDateUpdate(BaseModel):
+    mode: Literal["manual", "upload"] = "manual"
+    date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    timezone: str = Field(default="UTC", max_length=128)
+
+
+@router.patch("/{image_id}/date")
+def update_photo_date(
+    image_id: int,
+    values: PhotoDateUpdate,
+    db: Session = Depends(get_db),
+    profile_id: int = Depends(get_profile_id),
+):
+    image = db.query(Image).filter(Image.id == image_id, Image.profile_id == profile_id,
+                                   Image.deleted_at.is_(None)).first()
+    if image is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    zone = upload_zone(values.timezone)
+    if values.mode == "upload":
+        if values.date is not None:
+            raise HTTPException(status_code=422, detail="Upload date is calculated from the original upload time")
+        if image.created_at is None:
+            raise HTTPException(status_code=422, detail="This photo has no recorded upload time")
+        taken_at = local_upload_time(image.created_at, zone)
+    else:
+        try:
+            day = date.fromisoformat(values.date or "")
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Enter a valid photo date") from None
+        taken_at = datetime.combine(day, datetime.min.time())
+    image.photo_taken_at = taken_at
+    image.date_source = values.mode
+    db.commit()
+    return {"id": image.id, "photo_taken_at": taken_at.isoformat(), "date_source": image.date_source}
 
 
 class ReorderItem(BaseModel):

@@ -190,3 +190,9 @@ The existing root cron invokes the checked-out `scripts/backup.sh`. It now recor
 Roll forward for application issues where possible. Old code ignores `deleted_at` and would show trashed photos again; it also uses hard deletion. Do not drop the column or restore an older database over new uploads as an application rollback. Keep a pre-deploy database backup and the current originals/aligned files. Rollback of frontend-only issues should retain the new backend lifecycle semantics.
 
 Verify after merging: active photos/timelapse load; Trash and Restore preserve a test photo; date/sample export count matches preview; new backups update Archive health. Inspect logs for pool timeouts or copy/backup errors. Run fixture-based checks without mutating the owner's real photos.
+
+### Photo dates
+
+New photos use EXIF metadata, then a date in the filename, otherwise their upload time in the uploading device's timezone (UTC for older API clients). An **Upload date** label means the capture date is unknown. Click a date in the library's grid or list to set the actual calendar date, or choose **Use upload date** to reset the fallback in your current device timezone. Date changes update preview and exported captions; they do not change photo files. Explicit manual ordering still takes priority over chronological sorting.
+
+Migration010 adds provenance without rewriting old dates. The editor identifies those as having an unrecorded source; some may have been estimated by older versions. Do not mass-correct old dates without reviewing them. The migration is additive and older code can ignore its column. Exact-file duplicate detection is unchanged: resized or re-saved versions may still upload as separate photos.
