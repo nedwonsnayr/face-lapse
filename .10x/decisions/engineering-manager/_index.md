@@ -8,3 +8,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - styled-video-export: screenshot-matched export with independent captions.
 
 - export-performance: Sequence: benchmark baseline; renderer reuse/profiling; job dedup/admission; progress UI; unit/API/browser regression; compare benchmark and prepare PR.
+
+- archive-experience: approved eight-part upgrade; ADR-009.

@@ -1,3 +1,9 @@
+# Archive experience — design and plan complete
+
+User approved all prior recommendations. Spec and ADR-009 recorded. Implement scoped backend then bounded frontend media/navigation and archive tools; verify all paths before PR. PR23 is merged and deployed. No live photo mutations.
+
+## Previous history
+
 # Image loading recovery — 2026-11-09
 
 Production revision 3043fcb reports SQLAlchemy QueuePool timeouts in get_profile_id.

@@ -12,3 +12,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - styled-video-export: screenshot-matched export with independent captions.
 
 - export-performance: Optimize existing Pillow/FFmpeg pipeline; avoid new infrastructure or quality changes.
+
+- archive-experience: approved eight-part upgrade; ADR-009.
