@@ -25,6 +25,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   const { profileId, generateVideo, getAlignedImageUrl, getVideoUrl } = useProfileApi();
   const [selection, setSelection] = useState<FrameSelection>(ALL_FRAMES);
   const images = useMemo(() => selectFrames(allImages, selection), [allImages, selection]);
+  const imagesById = useMemo(() => new Map(allImages.map(image => [image.id, image])), [allImages]);
   const [frameDuration, setFrameDuration] = useState(0.05);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -207,7 +208,10 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
     
     return age >= 0 ? age : null;
   };
-  const captionImage = currentImage ? displayedImage ?? currentImage : undefined;
+  // The decoded frame may keep its URL while its date metadata is edited.
+  const captionImage = currentImage
+    ? (displayedImage && imagesById.get(displayedImage.id)) ?? displayedImage ?? currentImage
+    : undefined;
   const currentDate = captionImage?.photo_taken_at
     ? new Date(`${captionImage.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         month: "long",

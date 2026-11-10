@@ -14,3 +14,5 @@
 - export-performance: No dependency, schema or infrastructure change. CI runs backend/browser/build. Release via existing PR/main deploy workflow; rollback application revision without data migration. Hosted app not yet updated; CI pending.
 
 - archive-experience: verified for PR delivery; see archive-experience.md.
+
+- photo-date-fallback: ready for PR/main rollout; one audited live date correction complete.

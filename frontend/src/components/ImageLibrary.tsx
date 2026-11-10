@@ -1,6 +1,7 @@
 import { useProfileApi } from "../ProfileContext";
 import { archiveRequest } from "../archiveApi";
 import { Profile } from "../api";
+import PhotoDateEditor from "./PhotoDateEditor";
 import WindowedLibrary from "./WindowedLibrary";
 import ResilientImage from "./ResilientImage";
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -43,7 +44,7 @@ interface ImageLibraryProps {
 
 const formatRowDate = (iso: string | null): string | null =>
   iso
-    ? new Date(iso).toLocaleDateString("en-US", {
+    ? new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         weekday: "short",
         month: "short",
         day: "numeric",
@@ -64,7 +65,7 @@ function loadView(): LibraryView {
 
 const formatCardDate = (iso: string | null): string | null =>
   iso
-    ? new Date(iso).toLocaleDateString("en-US", {
+    ? new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
         year: "numeric",
@@ -78,6 +79,7 @@ interface CardActionsProps {
   onDelete: (id: number) => void;
   onToggle: (id: number) => void;
   onRealign: (id: number) => void;
+  onEditDate: (image: ImageRecord) => void;
   onChooseFace: (id: number) => void;
   selectedIds?: Set<number>;
   onSelect?: (id: number) => void;
@@ -91,7 +93,7 @@ interface CardActionsProps {
  */
 
 /** Thumbnail, hover actions, date and include toggle. Shared by sortable and static grids. */
-const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
+const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace, onEditDate }: CardActionsProps) {
   const { getAlignedImageUrl } = useProfileApi();
   const date = formatCardDate(img.photo_taken_at);
   const isRealigning = realigningId === img.id;
@@ -121,9 +123,11 @@ const CardBody = memo(function CardBody({ img, deletingId, realigningId, onDelet
       </div>
 
       <div className={s.cardFooter}>
-        <span className={s.date} title={img.original_filename}>
-          {date ?? img.original_filename}
-        </span>
+        <button className={cx(s.date, s.dateButton)} onClick={() => onEditDate(img)}
+          aria-label={`Edit photo date: ${date ?? img.original_filename}`}
+          title={img.date_source === "upload" ? `Upload date: ${date}. Capture date unknown; click to edit.` : "Edit photo date"}>
+          {img.date_source === "upload" && "Upload date · "}{date ?? img.original_filename}
+        </button>
         {img.has_aligned && <IncludeChip img={img} onToggle={onToggle} />}
       </div>
     </>
@@ -196,7 +200,7 @@ function IncludeChip({ img, onToggle }: { img: ImageRecord; onToggle: (id: numbe
 }
 
 /** One row in list view: thumbnail, full date, source filename, and always-visible controls. */
-const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace }: CardActionsProps) {
+const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete, onToggle, onRealign, onChooseFace, onEditDate }: CardActionsProps) {
   const { getAlignedImageUrl } = useProfileApi();
   const date = formatRowDate(img.photo_taken_at);
   return (
@@ -214,7 +218,10 @@ const RowBody = memo(function RowBody({ img, deletingId, realigningId, onDelete,
         )}
       </div>
       <div className={s.rowMeta}>
-        <span className={s.rowDate}>{date ?? img.original_filename}</span>
+        <button className={cx(s.rowDate, s.dateButton)} onClick={() => onEditDate(img)}
+          aria-label={`Edit photo date: ${date ?? img.original_filename}`} title="Edit photo date">
+          {img.date_source === "upload" && "Upload date · "}{date ?? img.original_filename}
+        </button>
         <span className={s.rowFile} title={img.original_filename}>
           {img.source_filename || img.original_filename}
         </span>
@@ -315,6 +322,7 @@ export default function ImageLibrary({
   onDraggingChange,
 }: ImageLibraryProps) {
   const { profileId, getOriginalImageUrl, deleteImage, toggleImage, reorderImages, deleteNoFaceImages, realignImage } = useProfileApi();
+  const [editingDate, setEditingDate] = useState<ImageRecord | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [realigningId, setRealigningId] = useState<number | null>(null);
   const [previousCollapsed, setPreviousCollapsed] = useState(false);
@@ -495,6 +503,7 @@ export default function ImageLibrary({
     onDelete: handleDelete,
     onToggle: handleToggle,
     onRealign: handleRealign,
+    onEditDate: setEditingDate,
     onChooseFace,
     selectedIds,
     onSelect: selecting ? selectPhoto : undefined,
@@ -538,6 +547,7 @@ export default function ImageLibrary({
 
   return (
     <div className={s.section}>
+      {editingDate && <PhotoDateEditor image={editingDate} onClose={() => setEditingDate(null)} onSaved={onRefresh} />}
       {/* Overall header */}
       <div className={s.headerRow}>
         <h2 className={s.heading}>

@@ -504,3 +504,6 @@
 .cardSelect { position: absolute; top: 6px; right: 6px; z-index: 2; padding: 8px; background: var(--surface); border-radius: var(--radius); }
 .rowSelect { display: flex; align-items: center; padding: 8px; }
 .cardSelect input, .rowSelect input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.dateButton { text-align: left; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.dateButton:hover { color: var(--accent); }

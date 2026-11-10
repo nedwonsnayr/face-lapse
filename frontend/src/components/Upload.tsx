@@ -541,7 +541,7 @@ const Upload = forwardRef<UploadHandle, UploadProps>(function Upload(
                   </span>
                   {img.photo_taken_at && (
                     <span className={s.stagingDate}>
-                      {new Date(img.photo_taken_at).toLocaleDateString()}
+                      {img.date_source === "upload" && "Upload date · "}{new Date(`${img.photo_taken_at.slice(0, 10)}T00:00:00`).toLocaleDateString()}
                     </span>
                   )}
                 </figcaption>

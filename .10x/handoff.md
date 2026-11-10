@@ -1,3 +1,31 @@
+# Photo date correction — PR25 ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/25. Preventive changes await merge and the existing main deployment. Locally: 50 backend / 63 browser tests, frontend build, migration retention and mobile editor review passed; the 2 new browser tests also passed after making screenshot artifacts portable to Linux CI. No background watcher or test servers remain. GitHub checks not yet confirmed complete at this handoff.
+
+Live correction complete: known upload-time fallback is now November 9 rather than the inferred November 13; actual capture date unknown. Guarded private audit saved before the one-row change; original bytes unchanged. Prior records will retain legacy provenance on migration until explicitly edited. QA/security and operational notes are in decisions/*/photo-date-fallback.md and reviews/2026-11-09-photo-date-*.md.
+
+## Previous history
+
+# Photo date correction — verified, preparing PR
+
+50 backend / 63 browser tests and production build passed. QA/security reviews recorded. Live invalid date repaired to known upload time with guarded audit; original unchanged. Preventive application changes await PR merge/main deployment. Old dates retained with legacy provenance.
+
+## Previous history
+
+# Photo date correction — implementation complete
+
+Uploads no longer call interpolation. EXIF/filename/upload provenance is persisted by additive migration010; prior rows remain legacy. Browser timezone is validated before writes; full UTC camera filenames resolve to local calendar time. Scoped active-photo date editing supports manual and explicit upload fallback. Grid/list date buttons open a modal; staging and library label upload dates. Paused preview looks up current metadata by ID with a memoized map, preserving decoded bytes.
+
+Initial verification: 50 backend tests and 2 new browser tests pass; mobile dialog visually inspected. Regression coverage includes archive gaps, UTC midnight/DST, EXIF priority, camera dates, malformed input, wrong person/trashed records, ETag changes, migration retention, file preservation, edit/reset/reload and failed-save retry. Full browser regression and final build remain. No production writes yet.
+
+## Previous history
+
+# Photo date correction — design and planning complete
+
+User deferred to team recommendation. Spec and ADR-010 recorded; proceed with scoped implementation and regression tests. PR24 merged and deployed at d80a19f. No production writes yet.
+
+## Previous history
+
 # Archive experience — PR24 ready for review
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/24 (open, mergeable). GitHub CI running as of publication; no success claim yet. All eight approved areas implemented, 44 backend and 61 browser tests passed locally, build and migration preservation verified. Test server ports5111/8111 are stopped; no background watcher remains. No merge/deployment or production data writes. Merge uses existing main deployment. Backup status will populate after the updated nightly script records a run; Trash has no expiry; presets per person/device. Runbook and reviews linked below in history.

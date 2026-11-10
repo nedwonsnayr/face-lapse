@@ -1,0 +1,5 @@
+# Photo dates — approved correction
+
+User delegates the recommended fix after a metadata-free upload was extrapolated to November 13. Use EXIF, then filename, otherwise the actual upload timestamp in the browser's validated IANA timezone (UTC for old clients). Parse complete UTC webcam timestamps before generic filename dates. Record date provenance; expose Upload date fallback and an editor with explicit manual date / reset to upload date. Existing archive dates stay unchanged and get legacy provenance. Exact-byte duplicate detection remains; no automatic deletion of similar pictures.
+
+Additive migration010; scoped active-photo PATCH endpoint. Date edits update list ETags and paused preview captions without invalidating image bytes. Upload responses must match persisted dates. Verify long archive gaps, timezone midnight/DST, camera filename, EXIF precedence, manual/reset edits, scope/trash rejection, migration retention, and browser refresh. Prepare a guarded, audited metadata-only correction for the identified production upload using its known upload time, never assert its capture date.

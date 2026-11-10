@@ -24,8 +24,9 @@ class Image(Base):
     original_path = Column(String, nullable=False)
     aligned_path = Column(String, nullable=True)
 
-    # EXIF or derived date for chronological sorting
+    # Calendar time used for sorting/captions, with explicit provenance.
     photo_taken_at = Column(DateTime, nullable=True)
+    date_source = Column(String, nullable=False, default="legacy", server_default="legacy")
 
     # Alignment metadata
     left_eye_x = Column(Float, nullable=True)

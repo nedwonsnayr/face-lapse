@@ -26,6 +26,7 @@ export interface ImageRecord {
   face_detected: boolean;
   included_in_video: boolean;
   photo_taken_at: string | null;
+  date_source?: "exif" | "filename" | "upload" | "manual" | "legacy";
   created_at: string | null;
   has_aligned: boolean;
   sort_order: number | null;
@@ -43,6 +44,7 @@ export interface UploadedImage {
   original_filename: string;
   source_filename: string | null;
   photo_taken_at: string | null;
+  date_source?: ImageRecord["date_source"];
   content_hash?: string;
   skipped?: boolean; // true if this is a duplicate
   existing_id?: number; // ID of the existing duplicate image
@@ -128,6 +130,7 @@ export async function uploadImages(
 
   for (const batch of batchFiles(files)) {
     const formData = new FormData();
+    formData.append("timezone", Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
     batch.forEach((file) => formData.append("files", file));
 
     const res = await fetch(scoped(`${API_BASE}/images/upload`, profileId), {
@@ -411,11 +414,22 @@ export async function selectFace(id: number, faceIndex: number, profileId = 1): 
   }
 }
 
+/** Change only date metadata; image files and cache keys stay intact. */
+export async function updatePhotoDate(id: number, date: string | null, profileId = 1): Promise<void> {
+  const res = await fetch(scoped(`${API_BASE}/images/${id}/date`, profileId), {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode: date === null ? "upload" : "manual", date,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" }),
+  });
+  if (!res.ok) throw await readError(res, "Could not update the photo date");
+}
+
 /** Bound to one person for the lifetime of a workspace and any async work it starts. */
 export function createProfileApi(profileId: number) {
   return {
     profileId,
     listImages: () => listImages(profileId),
+    updatePhotoDate: (id: number, date: string | null) => updatePhotoDate(id, date, profileId),
     uploadImages: (files: File[], progress?: (p: UploadProgress) => void) => uploadImages(files, progress, profileId),
     alignImages: (ids: number[], progress?: (p: AlignProgress) => void) => alignImages(ids, progress, profileId),
     deleteImage: (id: number) => deleteImage(id, profileId),
