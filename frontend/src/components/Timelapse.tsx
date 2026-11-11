@@ -7,6 +7,7 @@ import BufferedFrame from "./BufferedFrame";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { useSettings } from "../settings";
+import { FilterDefinition, IDENTITY } from "../filters/definition";
 import { Button, IconButton } from "./ui/Button";
 import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
@@ -36,6 +37,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(settings.showDate);
+  const [filter, setFilter] = useState<FilterDefinition>(IDENTITY);
   const [showAge, setShowAge] = useState(!!initialBirthday);
   const [birthday, setBirthday] = useState(initialBirthday ?? "");
   const [savingBirthday, setSavingBirthday] = useState(false);
@@ -249,7 +251,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
                 const img = images[(safeIndex + n + 1) % images.length];
                 return getAlignedImageUrl(img.id, img.content_hash, "frame");
               })}
-              alt={`Frame ${safeIndex + 1}`} className={s.frame} onReady={url => { if (url === requestedSrc) { setReadySrc(url); setDisplayedImage(currentImage); } }}
+              alt={`Frame ${safeIndex + 1}`} className={s.frame} filter={filter} frameIndex={safeIndex} onReady={url => { if (url === requestedSrc) { setReadySrc(url); setDisplayedImage(currentImage); } }}
             />
           )}
         </div>

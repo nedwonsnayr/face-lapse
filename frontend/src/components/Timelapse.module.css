@@ -42,6 +42,8 @@
 }
 
 .frame {
+  /* The <img> and the filtered <canvas> share one cell; the canvas covers the image. */
+  grid-area: 1 / 1;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;

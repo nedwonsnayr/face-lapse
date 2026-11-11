@@ -23,7 +23,11 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { browserName: "chromium" },
+      use: {
+        browserName: "chromium",
+        // Software WebGL2 (SwiftShader) so filter previews render headless and on GPU-less CI.
+        launchOptions: { args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] },
+      },
     },
   ],
   webServer: {
