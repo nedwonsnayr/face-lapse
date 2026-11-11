@@ -1,3 +1,9 @@
+# Timelapse prefetch: verified, shipping
+
+Built per ADR-013. 79/79 e2e and the build pass. A/B under jittery latency: 11.4 → 16.6 fps, and stalls over 200 ms dropped from 16 to 0. QA and security found nothing. Next: PR, admin merge and deploy (the user authorized this on 2026-11-11), then a production check.
+
+## Previous history
+
 # Timelapse prefetch: design and planning complete
 
 The bug: playback stalls with "Loading frame…". Measured in production, it's network-bound: fetch p90 is about 200 ms and the worst case about 500 ms, against a 0.2 s buffer. Playback ran at about 100 ms per frame against 50 ms set. The PR28 filters were ruled out by measurement. The user approved time-based prefetch (ADR-013). Branch `timelapse-prefetch`.

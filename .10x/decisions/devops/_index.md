@@ -20,3 +20,4 @@
 - settings-dark-mode: ships via existing merge-to-main deploy; revert to roll back. See [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: deploy-on-merge, migration 011; see [timelapse-filters](timelapse-filters.md).
+- timelapse-prefetch: frontend-only; revert to roll back. See [timelapse-prefetch](timelapse-prefetch.md).

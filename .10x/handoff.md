@@ -1,3 +1,9 @@
+# Handoff: timelapse-prefetch → DevOps + SRE
+
+Frontend only; ships through merge to main; revert to roll back. To check it's healthy, see decisions/sre/timelapse-prefetch.md. Follow-up worth considering: deadline-based cadence, because 0.05 s plays at about 60 ms per frame (pre-existing).
+
+## Previous history
+
 # Handoff: timelapse-prefetch → SDE
 
 Implement per decisions/senior-engineer/timelapse-prefetch.md and ADR-013. Measurement baseline is in ADR-013's Context. The user authorized an admin merge and deploy once it's verified.

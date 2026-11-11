@@ -4,6 +4,7 @@ import { filtersApi, ImageRecord, VideoJob } from "../api";
 import ExportSettings from "./ExportSettings";
 import { ALL_FRAMES, FrameSelection, selectFrames } from "../selection";
 import BufferedFrame from "./BufferedFrame";
+import { FramePrefetcher, prefetchCount } from "../framePrefetch";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { useSettings } from "../settings";
@@ -16,8 +17,9 @@ import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
 import s from "./Timelapse.module.css";
 
-// Frames to load ahead of the playhead.
-const PRELOAD_AHEAD = 4;
+// Frames kept decoded ahead of the playhead. Further frames are only
+// downloaded (FramePrefetcher, ~3 s ahead) so memory stays small. ADR-013.
+const DECODE_AHEAD = 8;
 
 interface TimelapseProps {
   /** Included+aligned images, in display order */
@@ -150,6 +152,21 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   }, []);
   const requestedImage = images[Math.min(currentIndex, Math.max(0, images.length - 1))];
   const requestedSrc = requestedImage ? getAlignedImageUrl(requestedImage.id, requestedImage.content_hash, "frame") : "";
+  // Upcoming frames, nearest first: the first DECODE_AHEAD are decoded, the rest only downloaded.
+  const playhead = Math.min(currentIndex, Math.max(0, images.length - 1));
+  const upcoming = useMemo(() => Array.from({ length: Math.max(0, Math.min(prefetchCount(frameDuration), images.length - 1)) }, (_, n) => {
+    const img = images[(playhead + n + 1) % images.length];
+    return getAlignedImageUrl(img.id, img.content_hash, "frame");
+  }), [images, playhead, frameDuration, getAlignedImageUrl]);
+  const decodeAhead = useMemo(() => upcoming.slice(0, DECODE_AHEAD), [upcoming]);
+  const prefetcher = useRef<FramePrefetcher | null>(null);
+  useEffect(() => {
+    const p = new FramePrefetcher();
+    prefetcher.current = p;
+    return () => { p.dispose(); prefetcher.current = null; };
+  }, []);
+  const prefetchKey = upcoming.slice(DECODE_AHEAD).join("\n");
+  useEffect(() => { prefetcher.current?.want(prefetchKey ? prefetchKey.split("\n") : []); }, [prefetchKey]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   useEffect(() => {
     if (!displayedImage || (isPlaying && thumb)) return;
@@ -339,10 +356,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
           {currentImage && (
             <BufferedFrame
               src={requestedSrc}
-              ahead={Array.from({ length: Math.min(PRELOAD_AHEAD, images.length - 1) }, (_, n) => {
-                const img = images[(safeIndex + n + 1) % images.length];
-                return getAlignedImageUrl(img.id, img.content_hash, "frame");
-              })}
+              ahead={decodeAhead}
               alt={`Frame ${safeIndex + 1}`} className={s.frame} filter={filter} frameIndex={safeIndex} onReady={url => { if (url === requestedSrc) { setReadySrc(url); setDisplayedImage(currentImage); } }}
             />
           )}
