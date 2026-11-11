@@ -1,6 +1,6 @@
-# Timelapse filters: delivery notes written, PR opening
+# Timelapse filters: PR28 ready for review
 
-Ready to ship on merge to main. Migration 011 runs at startup. Ops notes are in decisions/{devops,sre}/timelapse-filters.md.
+PR: https://github.com/nedwonsnayr/face-lapse/pull/28. It ships on merge to main, and migration 011 runs at startup. Ops notes are in decisions/{devops,sre}/timelapse-filters.md. The design system artifact (version 8) now has the FilterChip and FilterEditor patterns. Not yet done: GitHub CI results (Auto-fix is watching) and export timing on the VM after deploy.
 
 ## Previous history
 
