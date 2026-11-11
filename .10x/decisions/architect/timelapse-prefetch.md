@@ -1,0 +1,11 @@
+# Architect: timelapse-prefetch (ADR-013)
+- **Problem:** playback stalls on network latency. It's measured, not assumed: production fetch p90 is about 200 ms, the worst case about 500 ms, and the buffer only 0.2 s. PR28's filter path was ruled out by side-by-side measurement.
+- **Components:**
+  - `frontend/src/framePrefetch.ts`: `FramePrefetcher`, a pure class that is testable with a fake `fetch`, plus `prefetchCount(frameDuration)`.
+  - `Timelapse.tsx` owns one prefetcher. Every time the playhead, selection or speed changes, it hands over the ordered list of window URLs, minus the decode window.
+  - `BufferedFrame` keeps decoding `ahead` (now 8). The cache cap rises to 16.
+- **Failure modes:**
+  - A failed or aborted prefetch is silent, and the frame loads normally when it reaches the decode window.
+  - The "done" set is bounded at 2000 URLs, oldest dropped first.
+  - On unmount, everything in flight is aborted.
+- **Unchanged:** the backend, the HTTP cache headers, the "Loading frame…" threshold and the retry UI.

@@ -1,3 +1,9 @@
+# Handoff: timelapse-prefetch → SDE
+
+Implement per decisions/senior-engineer/timelapse-prefetch.md and ADR-013. Measurement baseline is in ADR-013's Context. The user authorized an admin merge and deploy once it's verified.
+
+## Previous history
+
 # Handoff: timelapse-filters → DevOps + SRE
 
 Ships through merge to main. Migration 011 (new table only) runs at startup. Rollback is to revert the PR; the table is harmless. Reviews are in reviews/2026-11-10-timelapse-filters-{qa-report,security-review}.md. Watch export phase timings and video disk use after deploy.

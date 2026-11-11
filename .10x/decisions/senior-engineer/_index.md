@@ -17,3 +17,4 @@ Active features: [ui-revamp](ui-revamp.md)
 - settings-dark-mode: approach per task; see [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: ADR-012; see [timelapse-filters](timelapse-filters.md).
+- timelapse-prefetch: see [timelapse-prefetch](timelapse-prefetch.md).
