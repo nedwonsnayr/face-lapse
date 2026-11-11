@@ -1,3 +1,9 @@
+# Playback cadence: verified, PR open
+
+Frames are now timed from the previous advance, so 0.05 s plays at 51 ms per frame instead of 54–60 ms. 80/80 e2e and the build pass. This branch also carries the timelapse-prefetch delivery notes. Waiting on the user's go-ahead to merge and deploy.
+
+## Previous history
+
 # Timelapse prefetch: delivered
 
 PR30 was admin-merged as 63680be and deployed by deploy.yml (run 42965266110, success). The live bundle index-BCToXWUL.js contains the prefetcher.

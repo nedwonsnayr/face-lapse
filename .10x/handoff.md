@@ -1,3 +1,9 @@
+# Handoff: playback-cadence → DevOps
+
+Frontend only; ships through merge to main; revert to roll back. Live check: playback at 0.05 s should be close to 20 fps. Measure from a browser whose timers are accurate (see the SRE caveat in decisions/sre/timelapse-prefetch.md).
+
+## Previous history
+
 # Handoff: timelapse-prefetch → DevOps + SRE
 
 Frontend only; ships through merge to main; revert to roll back. To check it's healthy, see decisions/sre/timelapse-prefetch.md. Follow-up worth considering: deadline-based cadence, because 0.05 s plays at about 60 ms per frame (pre-existing).

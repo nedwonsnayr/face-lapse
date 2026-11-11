@@ -5,6 +5,7 @@ import ExportSettings from "./ExportSettings";
 import { ALL_FRAMES, FrameSelection, selectFrames } from "../selection";
 import BufferedFrame from "./BufferedFrame";
 import { FramePrefetcher, prefetchCount } from "../framePrefetch";
+import { nextAdvanceDelay } from "../playbackClock";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { useSettings } from "../settings";
@@ -167,32 +168,22 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   }, []);
   const prefetchKey = upcoming.slice(DECODE_AHEAD).join("\n");
   useEffect(() => { prefetcher.current?.want(prefetchKey ? prefetchKey.split("\n") : []); }, [prefetchKey]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastAdvanceAt = useRef(0);
   useEffect(() => {
     if (!displayedImage || (isPlaying && thumb)) return;
     const index = Math.max(0, images.findIndex(i => i.id === displayedImage.id));
     setThumb({ src: getAlignedImageUrl(displayedImage.id, displayedImage.content_hash, "thumb"), frameIndex: index });
   }, [displayedImage, isPlaying]);
 
-  // Clear and restart interval whenever frameDuration or isPlaying changes
+  // Advance once the requested frame is on screen, timed from the previous
+  // advance so decode/render time doesn't slow playback (see playbackClock).
   useEffect(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    if (isPlaying && visible && images.length > 0 && readySrc === requestedSrc) {
-      intervalRef.current = setInterval(() => {
-        setCurrentIndex((prev) => {
-          const next = (prev + 1) % images.length;
-          return next;
-        });
-      }, frameDuration * 1000);
-    }
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    if (!isPlaying || !visible || images.length === 0 || readySrc !== requestedSrc) return;
+    const timer = setTimeout(() => {
+      lastAdvanceAt.current = performance.now();
+      setCurrentIndex((prev) => (prev + 1) % images.length);
+    }, nextAdvanceDelay(lastAdvanceAt.current, performance.now(), frameDuration * 1000));
+    return () => clearTimeout(timer);
   }, [frameDuration, isPlaying, images.length, readySrc, requestedSrc, visible]);
 
   // Reset index if images change or if currentIndex is out of bounds

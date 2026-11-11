@@ -25,3 +25,4 @@ Active features: [ui-revamp](ui-revamp.md)
 
 - timelapse-filters: 74/74 e2e, parity at most 1/255; see [timelapse-filters](timelapse-filters.md).
 - timelapse-prefetch: see [timelapse-prefetch](timelapse-prefetch.md).
+- playback-cadence: see [playback-cadence](playback-cadence.md).
