@@ -1,3 +1,9 @@
+# Timelapse filters: delivery notes written, PR opening
+
+Ready to ship on merge to main. Migration 011 runs at startup. Ops notes are in decisions/{devops,sre}/timelapse-filters.md.
+
+## Previous history
+
 # Timelapse filters: verified, PR next
 
 Results: 69/69 backend tests, 74/74 Playwright, a clean build, and parity at most 1/255. QA and security found no blockers. Fixed during QA: the SwiftShader flag that broke camera capture, the pinned player size on phones, and the cold-start wait. Grain makes MP4s 3.6–6.3× larger, and a filtered export costs about 100–150 ms per frame.
