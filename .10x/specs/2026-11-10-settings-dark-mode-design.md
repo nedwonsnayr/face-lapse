@@ -18,7 +18,7 @@ Add a Settings button with a Light / Dark / System theme choice. Dark mode must 
 | Library | Default view | Grid · List | Grid (or the view the user already saved) |
 | | Default order | Oldest first · Newest first | Oldest first |
 
-**Semantics.** Settings are starting values. The inline controls (player speed, play/pause, Show date, library grid/list, sort button) work as before and change things for the current visit only. Settings are read when the app opens and when a person tab mounts. The theme applies live.
+**Semantics.** Settings are starting values. The grid/list toggle is the one exception. It already remembered its choice per device before this change, so it keeps doing that by updating "Default view" (as the design said, the controls "work as they do now"). The other inline controls (player speed, play/pause, Show date, sort button) work as before and change things for the current visit only. Settings are read when the app opens and when a person tab mounts. The theme applies live.
 
 **Show date** on the player also controls the date caption on exports, as it does today. The setting is that toggle's starting value. An export preset can still override it, as today.
 
