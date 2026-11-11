@@ -329,7 +329,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  background: rgba(28, 26, 23, 0.45);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 

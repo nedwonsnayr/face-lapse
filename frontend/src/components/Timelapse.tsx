@@ -6,6 +6,7 @@ import { ALL_FRAMES, FrameSelection, selectFrames } from "../selection";
 import BufferedFrame from "./BufferedFrame";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
+import { useSettings } from "../settings";
 import { Button, IconButton } from "./ui/Button";
 import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
@@ -26,13 +27,15 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   const [selection, setSelection] = useState<FrameSelection>(ALL_FRAMES);
   const images = useMemo(() => selectFrames(allImages, selection), [allImages, selection]);
   const imagesById = useMemo(() => new Map(allImages.map(image => [image.id, image])), [allImages]);
-  const [frameDuration, setFrameDuration] = useState(0.05);
+  // Settings are starting values only: read once, then the controls below own them.
+  const { settings } = useSettings();
+  const [frameDuration, setFrameDuration] = useState(settings.frameDuration);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(settings.autoplay);
   const [exportProgress, setExportProgress] = useState<VideoJob | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showDates, setShowDates] = useState(true);
+  const [showDates, setShowDates] = useState(settings.showDate);
   const [showAge, setShowAge] = useState(!!initialBirthday);
   const [birthday, setBirthday] = useState(initialBirthday ?? "");
   const [savingBirthday, setSavingBirthday] = useState(false);
@@ -314,7 +317,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
 
       {/* Settings */}
       <div className={s.panel}>
-        <p className={cx(forms.eyebrow, s.panelTitle)}>Settings</p>
+        <p className={cx(forms.eyebrow, s.panelTitle)}>Playback &amp; export</p>
 
         <SpeedSlider value={frameDuration} onChange={setFrameDuration} />
 

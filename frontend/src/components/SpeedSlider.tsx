@@ -1,35 +1,36 @@
 import React from "react";
 import forms from "./ui/forms.module.css";
 import s from "./SpeedSlider.module.css";
+import { MAX_FRAME_DURATION as MAX, MIN_FRAME_DURATION as MIN } from "../settings";
 
 interface SpeedSliderProps {
   value: number;
   onChange: (value: number) => void;
+  /** Prefix for the element id and test ids, so two sliders can share a page. */
+  idPrefix?: string;
+  label?: string;
 }
 
-const MIN = 0.05;
-const MAX = 1.0;
-
-export default function SpeedSlider({ value, onChange }: SpeedSliderProps) {
+export default function SpeedSlider({ value, onChange, idPrefix = "speed-slider", label = "Frame duration" }: SpeedSliderProps) {
   const fps = 1 / value;
   const fill = ((value - MIN) / (MAX - MIN)) * 100;
 
   return (
-    <div data-testid="speed-slider" className={s.container}>
+    <div data-testid={idPrefix} className={s.container}>
       <div className={s.labelRow}>
-        <label htmlFor="speed-slider-input" className={s.label}>
-          Frame duration
+        <label htmlFor={`${idPrefix}-input`} className={s.label}>
+          {label}
         </label>
         <span className={s.readout}>
-          <span data-testid="speed-slider-value" className={s.value}>
+          <span data-testid={`${idPrefix}-value`} className={s.value}>
             {value.toFixed(2)}s
           </span>
           <span className={s.fps}>{fps >= 10 ? Math.round(fps) : fps.toFixed(1)} fps</span>
         </span>
       </div>
       <input
-        id="speed-slider-input"
-        data-testid="speed-slider-input"
+        id={`${idPrefix}-input`}
+        data-testid={`${idPrefix}-input`}
         type="range"
         min={MIN}
         max={MAX}

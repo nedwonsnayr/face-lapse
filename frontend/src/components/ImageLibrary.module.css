@@ -259,7 +259,7 @@
   width: 26px;
   height: 26px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 253, 249, 0.92);
+  background: var(--surface-veil);
   color: var(--muted);
   box-shadow: var(--shadow-print);
   cursor: grab;

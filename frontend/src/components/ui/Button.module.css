@@ -122,7 +122,7 @@
 }
 
 .icon_overlay {
-  background: rgba(255, 253, 249, 0.92);
+  background: var(--surface-veil);
   color: var(--ink);
   box-shadow: var(--shadow-print);
   /* No backdrop-filter: these sit on every grid photo, and each blur becomes its

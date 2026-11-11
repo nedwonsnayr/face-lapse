@@ -9,6 +9,13 @@ const paths = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  settings: (
+    <>
+      <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+      <circle cx="15" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+    </>
+  ),
   camera: (
     <>
       <path d="M4 8h3l2-3h6l2 3h3v11H4z" />

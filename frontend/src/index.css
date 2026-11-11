@@ -12,6 +12,8 @@
 
 :root {
   /* ── Palette: paper & ink ─────────────────────────── */
+  /* Light values only. Browsers with light-dark() get both themes in the
+     @supports block below; older ones stay on this light palette. */
   --paper: #f6f3ee;
   --paper-deep: #ede8df;
   --surface: #fffdf9;
@@ -31,6 +33,12 @@
   --warning: #9a6a0e;
   --warning-wash: rgba(176, 122, 18, 0.09);
   --mat: #141311;
+  --surface-veil: rgba(255, 253, 249, 0.92);
+  --paper-veil: rgba(246, 243, 238, 0.82);
+  --scrim: rgba(20, 19, 17, 0.45);
+  --scrim-strong: rgba(20, 19, 17, 0.65);
+  --shadow-ink: rgba(28, 26, 23, 0.06);
+  --shadow-ink-deep: rgba(28, 26, 23, 0.12);
 
   /* Legacy names, mapped onto the new palette */
   --bg: var(--paper);
@@ -62,8 +70,8 @@
   --radius: 6px;
   --radius-lg: 10px;
   --radius-pill: 999px;
-  --shadow-print: 0 1px 1px rgba(28, 26, 23, 0.06), 0 2px 6px rgba(28, 26, 23, 0.06);
-  --shadow-lift: 0 2px 4px rgba(28, 26, 23, 0.06), 0 12px 28px rgba(28, 26, 23, 0.12);
+  --shadow-print: 0 1px 1px var(--shadow-ink), 0 2px 6px var(--shadow-ink);
+  --shadow-lift: 0 2px 4px var(--shadow-ink), 0 12px 28px var(--shadow-ink-deep);
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   --dur: 160ms;
   --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
@@ -71,8 +79,51 @@
   --topbar-h: 64px;
 }
 
-html {
+/* ── Themes ───────────────────────────────────────────
+   <html data-theme> is set before first paint by the script in index.html.
+   "system" (the default) follows the device; light/dark force one palette.
+   Each token is light-dark(<light>, <dark>): the "darkroom" palette inverts
+   paper and ink but keeps the warmth. Photos, the mat and on-photo chrome
+   look the same in both themes. */
+:root {
+  color-scheme: light dark;
+}
+:root[data-theme="light"] {
   color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+@supports (color: light-dark(#000, #fff)) {
+  :root {
+    --paper: light-dark(#f6f3ee, #161411);
+    --paper-deep: light-dark(#ede8df, #27231e);
+    --surface: light-dark(#fffdf9, #1d1a17);
+    --ink: light-dark(#1c1a17, #f2ece2);
+    --ink-soft: light-dark(#3a3631, #d6cec1);
+    --muted: light-dark(#6f6a62, #aaa296);
+    --faint: light-dark(#a29c92, #80796e);
+    --hairline: light-dark(#e4ded4, #2f2a25);
+    --hairline-strong: light-dark(#d3cbbe, #4d463d);
+    --accent: light-dark(#a4372a, #e8806c);
+    --accent-hover: light-dark(#8a2c21, #f0998a);
+    --accent-wash: light-dark(rgba(164, 55, 42, 0.08), rgba(232, 128, 108, 0.14));
+    --success: light-dark(#3d7a52, #82c497);
+    --success-wash: light-dark(rgba(61, 122, 82, 0.1), rgba(130, 196, 151, 0.12));
+    --danger: light-dark(#b4442f, #ef8a73);
+    --danger-hover: light-dark(#93321f, #f5a491);
+    --danger-wash: light-dark(rgba(180, 68, 47, 0.08), rgba(239, 138, 115, 0.13));
+    --warning: light-dark(#9a6a0e, #e0b153);
+    --warning-wash: light-dark(rgba(176, 122, 18, 0.09), rgba(224, 177, 83, 0.12));
+    --mat: light-dark(#141311, #0b0a09);
+    --surface-veil: light-dark(rgba(255, 253, 249, 0.92), rgba(29, 26, 23, 0.9));
+    --paper-veil: light-dark(rgba(246, 243, 238, 0.82), rgba(22, 20, 17, 0.84));
+    --scrim: light-dark(rgba(20, 19, 17, 0.45), rgba(0, 0, 0, 0.6));
+    --scrim-strong: light-dark(rgba(20, 19, 17, 0.65), rgba(0, 0, 0, 0.75));
+    --shadow-ink: light-dark(rgba(28, 26, 23, 0.06), rgba(0, 0, 0, 0.3));
+    --shadow-ink-deep: light-dark(rgba(28, 26, 23, 0.12), rgba(0, 0, 0, 0.45));
+  }
 }
 
 body {
