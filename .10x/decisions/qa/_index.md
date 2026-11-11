@@ -20,3 +20,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - archive-experience: verified for PR delivery; see archive-experience.md.
 
 - photo-date-fallback: verification complete; see feature review.
+
+- settings-dark-mode: 69/69 e2e incl. 5 new; contrast script; visual pass. See [settings-dark-mode](settings-dark-mode.md).

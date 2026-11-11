@@ -1,3 +1,9 @@
+# Handoff: settings-dark-mode → DevOps
+
+Frontend-only. The usual merge-to-main deploy ships it, with no migration or environment change. Rollback is to revert the PR. Reviews are in reviews/2026-11-10-settings-dark-mode-*.md.
+
+## Previous history
+
 # Handoff: settings-dark-mode → SDE
 
 Read ADR-011 and decisions/{architect,senior-engineer}/settings-dark-mode.md. Tasks are in engineering-manager/settings-dark-mode.md. Once the PR is up, update the design system artifact (https://claude.ai/artifact/CVNuQWqJm81qjR2f25mMXh) with dark theme values.

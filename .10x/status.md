@@ -1,3 +1,9 @@
+# Settings + dark mode: verified, PR next
+
+69/69 e2e tests (5 new), build clean, and the visual pass in both themes is done. QA and security found no blockers. The design system artifact now has the Dark theme, veil and scrim tokens, a Themes section, the settings icon and the Segmented card (versions 5–6).
+
+## Previous history
+
 # Settings + dark mode: design and planning complete
 
 The user approved the Settings design: theme Light/Dark/System, playback defaults (speed, autoplay, date), and library defaults (view, order). Spec: specs/2026-11-10-settings-dark-mode-design.md. ADR-011: device-local settings plus CSS light-dark() tokens. Six tasks are planned, on branch `settings-dark-mode`. PR26 is merged.
