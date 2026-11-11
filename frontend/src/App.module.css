@@ -107,7 +107,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-6);
-  background: rgba(246, 243, 238, 0.82);
+  background: var(--paper-veil);
   backdrop-filter: blur(4px);
   pointer-events: none;
   animation: fadeIn var(--dur) var(--ease);

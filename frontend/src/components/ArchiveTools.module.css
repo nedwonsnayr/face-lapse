@@ -20,5 +20,5 @@
 .health div { padding: 12px; border: 1px solid var(--hairline); }
 .health dt { font-size: var(--text-sm); color: var(--muted); }
 .health dd { font-size: 24px; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.error { color: var(--danger, #a22); }
+.error { color: var(--danger); }
 @media (max-width: 420px) { .controls { gap: 10px; } .compare { gap: 6px; } }

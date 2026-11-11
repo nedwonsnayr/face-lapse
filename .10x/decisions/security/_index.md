@@ -17,3 +17,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - archive-experience: approved eight-part upgrade; ADR-009.
 
 - photo-date-fallback: verification complete; see feature review.
+
+- settings-dark-mode: no new attack surface; localStorage values validated. See [settings-dark-mode](settings-dark-mode.md).

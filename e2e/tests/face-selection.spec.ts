@@ -23,7 +23,14 @@ test.describe("Choose a face for one timelapse", () => {
     await expect(page.getByTestId("face-option-1")).toBeVisible();
     await expect(page.getByTestId("confirm-face-selection")).toBeDisabled();
     await page.screenshot({ path: "test-results/face-picker-desktop.png" });
+    // Face labels sit on the photo, so they keep dark backgrounds in the Dark theme too.
+    await page.emulateMedia({ colorScheme: "dark" });
+    const labelColors = (index: number) => page.getByTestId(`face-option-${index}`).locator("span")
+      .evaluate(el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]);
+    await expect.poll(() => labelColors(0)).toEqual(["rgb(28, 26, 23)", "rgb(255, 255, 255)"]);
     await page.getByTestId("face-option-1").click();
+    await expect.poll(() => labelColors(1)).toEqual(["rgb(164, 55, 42)", "rgb(255, 255, 255)"]);
+    await page.emulateMedia({ colorScheme: "light" });
     await page.getByTestId("confirm-face-selection").click();
     await expect(page.getByTestId("face-picker")).not.toBeVisible();
     await expect(page.getByTestId("face-review-queue")).not.toBeVisible();

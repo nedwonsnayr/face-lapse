@@ -1,0 +1,24 @@
+# QA: settings-dark-mode
+- **New `e2e/tests/settings.spec.ts` (5 tests):**
+  - System follows emulated `prefers-color-scheme` live.
+  - Light and Dark can each be forced.
+  - The choice persists across a reload.
+  - The pre-paint script applies the saved theme with the app bundle blocked.
+  - `theme-color` follows the theme.
+  - Corrupt or unknown values fall back field by field.
+  - Defaults for speed, autoplay, date, view and order apply after a reload.
+  - Inline changes don't overwrite the saved defaults, except grid/list.
+  - The legacy view key carries over.
+- **Updated:** `library-view.spec.ts` clears the new key in `beforeEach`.
+- **Full suite:** 69/69 passed locally (1.7 min). The TypeScript check and production build pass. The built CSS keeps the `@supports light-dark()` block, and the built `index.html` keeps the pre-paint script.
+- **Bug found by the tests:** `theme-color` was set to the literal `light-dark(...)` string. Fixed by reading the resolved body colour.
+- **Contrast (scripted, WCAG):**
+  - Dark: ink 15.7, muted 7.3, accent 6.8, success 9.0, danger 7.5, warning 9.3 on paper.
+  - Dark `faint` is 4.3:1 on paper. That's better than Light's 2.5, and the existing rule (never for text that must be read) still applies.
+  - Light values are unchanged.
+- **Visual pass:** screenshots of the library, list view, player, Settings and the date dialog in both themes at 1440 px and 390 px.
+  - Fixed during the pass: the dark segmented control's selected state was too faint, so it now has an outline.
+  - Fixed during the pass: the player's panel heading "Settings" is renamed "Playback & export".
+- **Not covered:**
+  - Safari or iOS with a real device.
+  - Browsers without `light-dark()` (light fallback, by design).

@@ -1,0 +1,11 @@
+# Senior Engineer: settings-dark-mode
+- **Pre-paint script:** parse the JSON in a try block. Accept only `light` or `dark` and otherwise set `system`.
+- **CSS:**
+  - `:root { color-scheme: light dark }`.
+  - `[data-theme=light] { color-scheme: light }` and `[data-theme=dark] { color-scheme: dark }`.
+  - Remove the existing `html { color-scheme: light }`.
+- **Dark shadows:** shadows use a higher black alpha, so they still read on charcoal.
+- **Defaults are read once:** Timelapse and ImageLibrary call `useSettings().settings` inside `useState` initialisers, so later changes don't fight the inline controls.
+- **ImageLibrary:** `setView` stops writing `face-lapse:library-view`. Settings owns persistence. The legacy key is only read for migration.
+- **`theme-color` meta:** update it in `applyTheme` from `getComputedStyle(document.documentElement).getPropertyValue('--paper')` after the attribute changes, and also on OS scheme changes while in System mode.
+- **E2e:** `page.emulateMedia({ colorScheme })`, then read `getComputedStyle(document.body).backgroundColor`.

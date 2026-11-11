@@ -5,7 +5,8 @@ import Upload, { UploadHandle } from "./components/Upload";
 import ImageLibrary from "./components/ImageLibrary";
 import Timelapse from "./components/Timelapse";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { Button } from "./components/ui/Button";
+import { Button, IconButton } from "./components/ui/Button";
+import SettingsDialog from "./components/SettingsDialog";
 import Icon from "./components/ui/Icon";
 import { ImageRecord, AlignResponse } from "./api";
 import s from "./App.module.css";
@@ -85,6 +86,7 @@ function PersonWorkspace({ profile, profiles, tabs, onProfileSaved }: {
   const [loading, setLoading] = useState(true);
   const [recentUploadIds, setRecentUploadIds] = useState<Set<number>>(new Set());
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const uploadRef = useRef<UploadHandle>(null);
   const alive = useRef(true);
   const requestNumber = useRef(0);
@@ -212,6 +214,13 @@ function PersonWorkspace({ profile, profiles, tabs, onProfileSaved }: {
               )}
             </p>
           )}
+          <IconButton
+            icon="settings"
+            label="Settings"
+            onClick={() => setSettingsOpen(true)}
+            aria-haspopup="dialog"
+            data-testid="settings-button"
+          />
           <Button
             variant="primary"
             icon="plus"
@@ -222,6 +231,7 @@ function PersonWorkspace({ profile, profiles, tabs, onProfileSaved }: {
           </Button>
         </div>
       </header>
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       {tabs}
       <main id="person-workspace" role="tabpanel" aria-labelledby={`person-tab-${profile.id}`} className={s.shell}>
         <section className={s.libraryPane} aria-label="Library">

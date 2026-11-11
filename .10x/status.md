@@ -1,3 +1,15 @@
+# Settings + dark mode: verified, PR next
+
+69/69 e2e tests (5 new), build clean, and the visual pass in both themes is done. QA and security found no blockers. The design system artifact now has the Dark theme, veil and scrim tokens, a Themes section, the settings icon and the Segmented card (versions 5–6).
+
+## Previous history
+
+# Settings + dark mode: design and planning complete
+
+The user approved the Settings design: theme Light/Dark/System, playback defaults (speed, autoplay, date), and library defaults (view, order). Spec: specs/2026-11-10-settings-dark-mode-design.md. ADR-011: device-local settings plus CSS light-dark() tokens. Six tasks are planned, on branch `settings-dark-mode`. PR26 is merged.
+
+## Previous history
+
 # Photo date correction — PR25 ready for review
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/25. Preventive changes await merge and the existing main deployment. Locally: 50 backend / 63 browser tests, frontend build, migration retention and mobile editor review passed; the 2 new browser tests also passed after making screenshot artifacts portable to Linux CI. No background watcher or test servers remain. GitHub checks not yet confirmed complete at this handoff.

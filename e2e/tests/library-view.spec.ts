@@ -5,7 +5,7 @@ import { alignStagedImages, deleteAllImages, uploadAndStage, WITH_FACE } from ".
 test.describe("Face Lapse – library list/grid view", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.removeItem("face-lapse:library-view"));
+    await page.evaluate(() => { localStorage.removeItem("face-lapse:library-view"); localStorage.removeItem("face-lapse:settings"); });
     await deleteAllImages(page);
     await page.reload();
     await uploadAndStage(page, WITH_FACE);
@@ -61,7 +61,7 @@ test.describe("Face Lapse – library view switching at scale", () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.removeItem("face-lapse:library-view"));
+    await page.evaluate(() => { localStorage.removeItem("face-lapse:library-view"); localStorage.removeItem("face-lapse:settings"); });
     await deleteAllImages(page);
   });
 

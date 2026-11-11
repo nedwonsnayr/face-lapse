@@ -26,6 +26,7 @@ import Icon from "./ui/Icon";
 import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
 import s from "./ImageLibrary.module.css";
+import { LibraryView, useSettings } from "../settings";
 
 /* ── Props ─────────────────────────────────────────────── */
 
@@ -52,16 +53,7 @@ const formatRowDate = (iso: string | null): string | null =>
       })
     : null;
 
-export type LibraryView = "grid" | "list";
-const VIEW_STORAGE_KEY = "face-lapse:library-view";
-
-function loadView(): LibraryView {
-  try {
-    return localStorage.getItem(VIEW_STORAGE_KEY) === "list" ? "list" : "grid";
-  } catch {
-    return "grid";
-  }
-}
+export type { LibraryView };
 
 const formatCardDate = (iso: string | null): string | null =>
   iso
@@ -330,8 +322,10 @@ export default function ImageLibrary({
   const [noFaceCollapsed, setNoFaceCollapsed] = useState(false);
   const [dismissingNoFace, setDismissingNoFace] = useState(false);
   const [librarySearch, setLibrarySearch] = useState("");
-  const [sortAscending, setSortAscending] = useState(true);
-  const [view, setViewState] = useState<LibraryView>(loadView);
+  // Starting values from Settings. The sort button changes order for this visit only.
+  const { settings, update: updateSettings } = useSettings();
+  const [sortAscending, setSortAscending] = useState(!settings.newestFirst);
+  const [view, setViewState] = useState<LibraryView>(settings.libraryView);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [month, setMonth] = useState("");
@@ -344,7 +338,9 @@ export default function ImageLibrary({
   const [dragging, setDragging] = useState(false);
   const setView = (next: LibraryView) => {
     setViewState(next);
-    try { localStorage.setItem(VIEW_STORAGE_KEY, next); } catch { /* unavailable */ }
+    // Grid/list was already remembered per device before Settings existed, so
+    // the toggle keeps saving it (as Settings → Default view).
+    updateSettings({ libraryView: next });
   };
   const selectPhoto = useStableCallback((id: number) => setSelectedIds(old => {
     const next = new Set(old); next.has(id) ? next.delete(id) : next.add(id); return next;

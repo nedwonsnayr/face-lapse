@@ -12,3 +12,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - archive-experience: approved eight-part upgrade; ADR-009.
 
 - photo-date-fallback: approved explicit date provenance and correction; ADR-010.
+
+- settings-dark-mode: 6 tasks, single PR; see [settings-dark-mode](settings-dark-mode.md).
