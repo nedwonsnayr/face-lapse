@@ -16,3 +16,5 @@
 - archive-experience: verified for PR delivery; see archive-experience.md.
 
 - photo-date-fallback: ready for PR/main rollout; one audited live date correction complete.
+
+- settings-dark-mode: ships via existing merge-to-main deploy; revert to roll back. See [settings-dark-mode](settings-dark-mode.md).
