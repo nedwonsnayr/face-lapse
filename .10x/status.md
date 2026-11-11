@@ -1,3 +1,19 @@
+# Playback cadence: verified, PR open
+
+Frames are now timed from the previous advance, so 0.05 s plays at 51 ms per frame instead of 54–60 ms. 80/80 e2e and the build pass. This branch also carries the timelapse-prefetch delivery notes. Waiting on the user's go-ahead to merge and deploy.
+
+## Previous history
+
+# Timelapse prefetch: delivered
+
+PR30 was admin-merged as 63680be and deployed by deploy.yml (run 42965266110, success). The live bundle index-BCToXWUL.js contains the prefetcher.
+
+Live check from Chrome over 20 s: no gaps over 200 ms and no "Loading frame…", even though one frame fetch took 1.2 s. The live cadence (about 105 ms per frame) isn't a usable comparison, because that Chrome window throttles timers: `setTimeout(50)` measured 59–143 ms while paused. The local A/B is the evidence (11.4 → 16.6 fps, stalls 16 → 0).
+
+Open follow-up: the deadline-based cadence (0.05 s plays at about 60 ms per frame, pre-existing).
+
+## Previous history
+
 # Timelapse prefetch: verified, shipping
 
 Built per ADR-013. 79/79 e2e and the build pass. A/B under jittery latency: 11.4 → 16.6 fps, and stalls over 200 ms dropped from 16 to 0. QA and security found nothing. Next: PR, admin merge and deploy (the user authorized this on 2026-11-11), then a production check.

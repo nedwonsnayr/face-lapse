@@ -26,3 +26,4 @@ Active features: [ui-revamp](ui-revamp.md)
 - timelapse-filters: built as planned; see [timelapse-filters](timelapse-filters.md).
 
 - timelapse-prefetch: network prefetch ~3 s ahead + 8 decoded; see [timelapse-prefetch](timelapse-prefetch.md).
+- playback-cadence: deadline-based frame timing; see [playback-cadence](playback-cadence.md).
