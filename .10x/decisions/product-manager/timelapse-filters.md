@@ -1,0 +1,17 @@
+# Product Manager: timelapse-filters
+- **User:** the owner, making story-style timelapses to share.
+- **Scope, chosen by the user:**
+  - 10 built-in looks
+  - custom presets (create, edit, duplicate, delete) with every control tunable
+  - stored on the server and shared by all people
+  - full look, including moving grain
+- **Rules:**
+  - The selected filter applies to playback immediately, including while playing.
+  - The download uses exactly the selected filter.
+  - Built-ins can't be edited.
+- **Success:**
+  - A chip or slider change is visible on the next animation frame.
+  - The paused download frame matches the paused preview.
+  - Presets appear on every device.
+  - Unfiltered exports are unchanged.
+- **Out:** a default filter in Settings, per-person presets, curves, LUTs and colored grain.
