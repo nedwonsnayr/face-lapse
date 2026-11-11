@@ -1,3 +1,17 @@
+# Handoff: timelapse-filters → QA + Security
+
+What was built is in decisions/sde/timelapse-filters.md. To test:
+- the full Playwright suite (with the SwiftShader flags now in the config)
+- light and dark themes, at desktop and 390 px, with the editor open (sticky player)
+- filtered export timing and size versus unfiltered
+
+To review:
+- `/api/filters` input limits and the export body (`extra=forbid`)
+- preset names render as text only
+- the 50-preset cap
+
+## Previous history
+
 # Handoff: timelapse-filters → SDE
 
 Read ADR-012 and the spec. The pipeline formulas there are normative. Tasks are in decisions/engineering-manager/timelapse-filters.md, and the approach is in senior-engineer/timelapse-filters.md. Migration 011 adds `filter_presets`.
