@@ -44,6 +44,7 @@ class FilterPresetTests(unittest.TestCase):
     def setUp(self):
         with self.engine.begin() as conn:
             conn.execute(text("DELETE FROM filter_presets"))
+            conn.execute(text("INSERT OR IGNORE INTO profiles (id, name) VALUES (1, 'Ryan')"))
 
     def create(self, name="Golden hour", definition=LOOK):
         return self.client.post("/api/filters", json={"name": name, "definition": definition})
@@ -92,6 +93,11 @@ class FilterPresetTests(unittest.TestCase):
         over = self.create("One too many")
         self.assertEqual(over.status_code, 409)
         self.assertIn("up to 50", over.json()["detail"])
+
+    def test_export_rejects_an_invalid_filter_before_any_work(self):
+        for body in ({"filter": {**LOOK, "brightness": 9}}, {"filter": "mono"}, {"filter": LOOK, "other": 1}):
+            response = self.client.post("/api/video/generate?frame_duration=0.1", json=body)
+            self.assertEqual(response.status_code, 422, body)
 
     def test_presets_are_shared_by_every_person(self):
         self.create("Shared")

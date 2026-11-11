@@ -312,7 +312,8 @@ export async function generateVideo(
   showAge: boolean = false,
   onProgress?: (job: VideoJob) => void,
   profileId = 1,
-  selection?: FrameSelection
+  selection?: FrameSelection,
+  filter: FilterDefinition | null = null
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
@@ -329,7 +330,7 @@ export async function generateVideo(
   }
   const res = await fetch(
     scoped(`${API_BASE}/video/generate?${params.toString()}`, profileId),
-    { method: "POST" }
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filter }) }
   );
   if (!res.ok) throw await readError(res, "Video generation failed");
   let job: VideoJob = await res.json();
@@ -466,8 +467,9 @@ export function createProfileApi(profileId: number) {
     selectFace: (id: number, faceIndex: number) => selectFace(id, faceIndex, profileId),
     getAlignedImageUrl: (id: number, version?: string, size: ImageSize = "full") => getAlignedImageUrl(id, version, size, profileId),
     getOriginalImageUrl: (id: number, version?: string, size: ImageSize = "full") => getOriginalImageUrl(id, version, size, profileId),
-    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void, selection?: FrameSelection) =>
-      generateVideo(duration, dates, birthday, age, progress, profileId, selection),
+    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void,
+      selection?: FrameSelection, filter: FilterDefinition | null = null) =>
+      generateVideo(duration, dates, birthday, age, progress, profileId, selection, filter),
     getVideoUrl: (filename: string) => scoped(`${API_BASE}/video/${encodeURIComponent(filename)}`, profileId),
   };
 }

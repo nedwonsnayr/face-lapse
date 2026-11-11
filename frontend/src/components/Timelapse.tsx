@@ -7,7 +7,7 @@ import BufferedFrame from "./BufferedFrame";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { useSettings } from "../settings";
-import { FilterDefinition, IDENTITY } from "../filters/definition";
+import { FilterDefinition, IDENTITY, isIdentity } from "../filters/definition";
 import { Button, IconButton } from "./ui/Button";
 import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
@@ -151,7 +151,8 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
     setExportProgress(null);
     setError(null);
     try {
-      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress, selection);
+      const res = await generateVideo(frameDuration, showDates, showAge ? birthday : null, showAge, setExportProgress, selection,
+        isIdentity(filter) ? null : filter);
       if (!mounted.current) return;
       // Trigger download via a temporary link
       const url = getVideoUrl(res.video_filename);
@@ -173,7 +174,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
     } finally {
       setIsGenerating(false);
     }
-  }, [frameDuration, showDates, showAge, birthday, selection]);
+  }, [frameDuration, showDates, showAge, birthday, selection, filter]);
 
   if (allImages.length === 0) {
     return (
@@ -365,9 +366,9 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
         </div>
       </div>
 
-      <ExportSettings person={profileId} value={{ ...selection, duration: frameDuration, dates: showDates, age: showAge }}
+      <ExportSettings person={profileId} value={{ ...selection, duration: frameDuration, dates: showDates, age: showAge, filter }}
         onChange={value => { setSelection({ date_from: value.date_from, date_to: value.date_to, sampling: value.sampling });
-          setFrameDuration(value.duration); setShowDates(value.dates); setShowAge(value.age); setCurrentIndex(0); }} />
+          setFrameDuration(value.duration); setShowDates(value.dates); setShowAge(value.age); setFilter(value.filter ?? IDENTITY); setCurrentIndex(0); }} />
       {selection.date_from && selection.date_to && selection.date_from > selection.date_to && <p role="alert">Start date must be before the end date.</p>}
       {/* Export */}
       <div className={s.export}>

@@ -48,6 +48,27 @@ class VideoExportTests(unittest.TestCase):
                     self.assertEqual(age_pixels > 100, age)
         self.assertEqual(self.source.read_bytes(), before)
 
+    def test_filter_changes_only_the_photo_and_identity_changes_nothing(self):
+        from backend.app.services.filters import FilterDefinition
+        base = {"version": 1, "brightness": 1, "contrast": 1, "saturation": 1, "grayscale": 0, "warmth": 0, "hue": 0,
+                "fade": 0, "tint": {"color": "#ffffff", "blend": "soft-light", "strength": 0},
+                "vignette": {"strength": 0, "size": .5}, "grain": {"amount": 0, "size": .5}}
+        plain = self.video.render_video_frame(str(self.source), "August 19, 2020", 24)
+        same = self.video.render_video_frame(str(self.source), "August 19, 2020", 24, FilterDefinition.model_validate(base))
+        self.assertEqual(plain.tobytes(), same.tobytes())
+        mono = self.video.render_video_frame(str(self.source), "August 19, 2020", 24,
+                                             FilterDefinition.model_validate({**base, "grayscale": 1}), 5)
+        r, g, b = mono.getpixel((600, 700))
+        self.assertLessEqual(max(r, g, b) - min(r, g, b), 1)            # photo is grey
+        # Paper, mat and captions are untouched; only the photo rectangle differs.
+        self.assertEqual(mono.getpixel((10, 10)), plain.getpixel((10, 10)))
+        self.assertEqual(mono.getpixel((70, 200)), plain.getpixel((70, 200)))
+        self.assertEqual(mono.crop((0, 1500, 1200, 1800)).tobytes(), plain.crop((0, 1500, 1200, 1800)).tobytes())
+        diff = [i for i, (a, b2) in enumerate(zip(mono.getdata(), plain.getdata())) if a != b2]
+        rows = {i // 1200 for i in diff}
+        self.assertGreaterEqual(min(rows), 48)
+        self.assertLess(max(rows), 1488)
+
     def test_encoded_video_has_styled_frame_exact_cadence_and_unique_result(self):
         metadata = self.metadata * 3
         original = copy.deepcopy(metadata)
