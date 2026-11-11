@@ -1,3 +1,9 @@
+# Timelapse filters: design and planning complete
+
+The user approved a full-look filter feature: 10 built-ins, custom presets (server-side, shared by all people) with every control tunable, and moving grain. Spec: specs/2026-11-10-timelapse-filters-design.md. ADR-012: one pipeline, WebGL2 for playback and numpy for export, matched within 2/255. Twelve plan steps, on branch `timelapse-filters`. PR27 is merged.
+
+## Previous history
+
 # Settings + dark mode: verified, PR next
 
 69/69 e2e tests (5 new), build clean, and the visual pass in both themes is done. QA and security found no blockers. The design system artifact now has the Dark theme, veil and scrim tokens, a Themes section, the settings icon and the Segmented card (versions 5–6).

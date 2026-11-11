@@ -1,0 +1,14 @@
+# Senior Engineer: timelapse-filters
+- **Engine:** convert the photo to a float32 HxWx3 array once and chain the steps in place.
+  - Use `np.clip` after each step.
+  - Do the matrix steps with `arr @ M.T`.
+  - Build the grain cells with integer `np.arange` grids and expand them with `np.repeat` (or indexing). Compute the hash with `np.uint32`, which wraps silently.
+- **Shader:** `#version 300 es` with highp.
+  - Read pixels with `texelFetch(ivec2(x, y))`, where `y = H-1-int(gl_FragCoord.y)` for a top-left origin. Upload without `flipY`, so texel row 0 is the image's top row.
+  - Grain uses `uint` math.
+  - The output is `floor(c*255+.5)/255`.
+- **Canvas:** sized to the image's natural size and scaled by CSS like the `<img>`. One renderer per canvas; thumbnails share an offscreen renderer and copy out with `drawImage`.
+- **FrameCache:** expose the decoded `HTMLImageElement` via `cache.entries.get(src).image`, so there's no second decode.
+- **Export:** the body is parsed by FastAPI from a `GenerateBody` model with `filter: FilterDefinition | None = None` and stays optional, so old clients still work.
+- **Matching test:** spawn `.venv/bin/python scripts/filter_reference.py <fixture> <cases.json> <out.json>`, which outputs pixels as base64 RGB. Load the same fixture into the page, render each case, `readPixels`, and compare.
+- **Tricky parts:** context loss, React StrictMode double-mounting the WebGL context, and keeping thumbnail refresh off the playback hot path.

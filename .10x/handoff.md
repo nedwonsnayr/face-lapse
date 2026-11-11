@@ -1,3 +1,9 @@
+# Handoff: timelapse-filters → SDE
+
+Read ADR-012 and the spec. The pipeline formulas there are normative. Tasks are in decisions/engineering-manager/timelapse-filters.md, and the approach is in senior-engineer/timelapse-filters.md. Migration 011 adds `filter_presets`.
+
+## Previous history
+
 # Handoff: settings-dark-mode → DevOps
 
 Frontend-only. The usual merge-to-main deploy ships it, with no migration or environment change. Rollback is to revert the PR. Reviews are in reviews/2026-11-10-settings-dark-mode-*.md.
