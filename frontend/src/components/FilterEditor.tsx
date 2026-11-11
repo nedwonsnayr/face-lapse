@@ -66,51 +66,54 @@ export default function FilterEditor({ title, value, onChange, name, onNameChang
         onClick={() => onChange(IDENTITY)}>Reset all</Button>
     </div>
     <form className={s.form} onSubmit={e => { e.preventDefault(); if (!busy) onSave(); }}>
-      <label className={s.nameRow}>
-        <span className={s.label}>Name</span>
-        <input ref={nameField} className={forms.field} data-testid="filter-name" value={name} maxLength={40}
-          onChange={e => onNameChange(e.target.value)} placeholder="e.g. Golden hour" required />
-      </label>
+      {/* Locked while saving: edits made mid-request would be dropped when the save returns. */}
+      <fieldset className={s.controls} disabled={busy} data-testid="filter-controls">
+        <label className={s.nameRow}>
+          <span className={s.label}>Name</span>
+          <input ref={nameField} className={forms.field} data-testid="filter-name" value={name} maxLength={40}
+            onChange={e => onNameChange(e.target.value)} placeholder="e.g. Golden hour" required />
+        </label>
 
-      {CONTROLS.map(group => (
-        <fieldset key={group.section} className={s.group}>
-          <legend className={forms.eyebrow}>{group.section}</legend>
-          {group.section === "Tint" && <div className={s.tintRow}>
-            <label className={s.inline}>
-              <span className={s.label}>Color</span>
-              <input type="color" className={s.color} data-testid="filter-tint-color" value={value.tint.color}
-                onChange={e => onChange({ ...value, tint: { ...value.tint, color: e.target.value.toLowerCase() } })} />
-            </label>
-            <label className={s.inline}>
-              <span className={s.label}>Blend</span>
-              <select className={forms.field} data-testid="filter-tint-blend" value={value.tint.blend}
-                onChange={e => onChange({ ...value, tint: { ...value.tint, blend: e.target.value as BlendMode } })}>
-                {BLEND_MODES.map(mode => <option key={mode} value={mode}>{BLEND_LABELS[mode]}</option>)}
-              </select>
-            </label>
-          </div>}
-          {group.items.map(item => {
-            const [lo, hi] = RANGES[item.key];
-            const current = read(value, item.key);
-            const initial = read(IDENTITY, item.key);
-            const id = testId(item.key);
-            // "Strength" appears in two sections, so name controls by section where needed.
-            const fullName = group.section === "Light & color" || group.section === item.label
-              ? item.label : `${group.section} ${item.label.toLowerCase()}`;
-            return <div key={item.key} className={s.control}>
-              <label htmlFor={id} className={s.label}>{item.label}</label>
-              <output htmlFor={id} className={s.readout} data-testid={`${id}-value`}>{show(current, item.format)}</output>
-              <button type="button" className={s.reset} data-testid={`${id}-reset`} disabled={busy || current === initial}
-                aria-label={`Reset ${fullName.toLowerCase()}`}
-                onClick={() => onChange(write(value, item.key, initial))}>Reset</button>
-              <input id={id} data-testid={id} type="range" min={lo} max={hi} step={item.step} value={current} aria-label={fullName}
-                className={`${forms.range} ${s.range}`}
-                style={{ "--fill": `${((current - lo) / (hi - lo)) * 100}%` } as React.CSSProperties}
-                onChange={e => onChange(write(value, item.key, Number(e.target.value)))} />
-            </div>;
-          })}
-        </fieldset>
-      ))}
+        {CONTROLS.map(group => (
+          <fieldset key={group.section} className={s.group}>
+            <legend className={forms.eyebrow}>{group.section}</legend>
+            {group.section === "Tint" && <div className={s.tintRow}>
+              <label className={s.inline}>
+                <span className={s.label}>Color</span>
+                <input type="color" className={s.color} data-testid="filter-tint-color" value={value.tint.color}
+                  onChange={e => onChange({ ...value, tint: { ...value.tint, color: e.target.value.toLowerCase() } })} />
+              </label>
+              <label className={s.inline}>
+                <span className={s.label}>Blend</span>
+                <select className={forms.field} data-testid="filter-tint-blend" value={value.tint.blend}
+                  onChange={e => onChange({ ...value, tint: { ...value.tint, blend: e.target.value as BlendMode } })}>
+                  {BLEND_MODES.map(mode => <option key={mode} value={mode}>{BLEND_LABELS[mode]}</option>)}
+                </select>
+              </label>
+            </div>}
+            {group.items.map(item => {
+              const [lo, hi] = RANGES[item.key];
+              const current = read(value, item.key);
+              const initial = read(IDENTITY, item.key);
+              const id = testId(item.key);
+              // "Strength" appears in two sections, so name controls by section where needed.
+              const fullName = group.section === "Light & color" || group.section === item.label
+                ? item.label : `${group.section} ${item.label.toLowerCase()}`;
+              return <div key={item.key} className={s.control}>
+                <label htmlFor={id} className={s.label}>{item.label}</label>
+                <output htmlFor={id} className={s.readout} data-testid={`${id}-value`}>{show(current, item.format)}</output>
+                <button type="button" className={s.reset} data-testid={`${id}-reset`} disabled={busy || current === initial}
+                  aria-label={`Reset ${fullName.toLowerCase()}`}
+                  onClick={() => onChange(write(value, item.key, initial))}>Reset</button>
+                <input id={id} data-testid={id} type="range" min={lo} max={hi} step={item.step} value={current} aria-label={fullName}
+                  className={`${forms.range} ${s.range}`}
+                  style={{ "--fill": `${((current - lo) / (hi - lo)) * 100}%` } as React.CSSProperties}
+                  onChange={e => onChange(write(value, item.key, Number(e.target.value)))} />
+              </div>;
+            })}
+          </fieldset>
+        ))}
+      </fieldset>
 
       {error && <p role="alert" className={s.error} data-testid="filter-error">{error}</p>}
       <div className={s.actions}>

@@ -58,15 +58,19 @@ class FilterDefinition(_Strict):
 
 
 def canonical_filter(definition: FilterDefinition | None) -> dict | None:
-    """Stable form for cache keys and storage; identity means "no filter"."""
+    """Stable form for cache keys; identity means "no filter".
+
+    Numbers keep full precision: rendering uses the exact values (e.g. grain
+    cell counts can change at the 5th decimal), so rounding here could let two
+    visibly different exports share a cached video. Only the tint colour's case
+    is normalised, which never changes the output.
+    """
     if definition is None or definition.is_identity():
         return None
 
     def clean(value):
         if isinstance(value, dict):
             return {key: clean(item) for key, item in sorted(value.items())}
-        if isinstance(value, float):
-            return round(value, 4)
         if isinstance(value, str) and value.startswith("#"):
             return value.lower()
         return value

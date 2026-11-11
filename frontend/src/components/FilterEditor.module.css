@@ -20,6 +20,16 @@
   gap: var(--space-4);
 }
 
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
 .nameRow {
   display: flex;
   flex-direction: column;

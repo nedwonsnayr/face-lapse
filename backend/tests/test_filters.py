@@ -124,10 +124,16 @@ class FilterValidationTests(unittest.TestCase):
     def test_canonical_form_is_stable_and_identity_is_none(self):
         self.assertIsNone(canonical_filter(definition()))
         self.assertIsNone(canonical_filter(None))
-        a = canonical_filter(definition(contrast=1.123456, tint={"color": "#FFB36B", "strength": 0.2}))
-        b = canonical_filter(definition(contrast=1.12346, tint={"color": "#ffb36b", "strength": 0.2}))
-        self.assertEqual(a, b)
+        a = canonical_filter(definition(contrast=1.1, tint={"color": "#FFB36B", "strength": 0.2}))
+        b = canonical_filter(definition(contrast=1.1, tint={"color": "#ffb36b", "strength": 0.2}))
+        self.assertEqual(a, b)  # colour case never changes the render
         self.assertEqual(a["tint"]["color"], "#ffb36b")
+
+    def test_canonical_form_keeps_precision_that_changes_the_render(self):
+        # These grain sizes differ only at the 5th decimal but give different cell counts.
+        fine, coarse = (definition(grain={"amount": 0.5, "size": size}) for size in (0.30208, 0.30209))
+        self.assertNotEqual(grain_cells(fine.grain.size), grain_cells(coarse.grain.size))
+        self.assertNotEqual(canonical_filter(fine), canonical_filter(coarse))
 
 
 if __name__ == "__main__":

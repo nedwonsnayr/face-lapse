@@ -117,6 +117,26 @@ test.describe("Timelapse filters", () => {
     await expect(page.getByTestId("timelapse-filtered-frame")).toBeVisible();
   });
 
+  test("controls are locked while a save is in flight", async ({ page }) => {
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    await page.route("**/api/filters", async route => {
+      if (route.request().method() === "POST") await held;
+      await route.continue();
+    });
+    await page.getByTestId("filter-new").click();
+    await page.getByTestId("filter-name").fill("Slow save");
+    await page.getByTestId("filter-warmth").fill("0.4");
+    await page.getByTestId("filter-save").click();
+    await expect(page.getByTestId("filter-save")).toHaveText("Saving…");
+    for (const id of ["filter-name", "filter-warmth", "filter-tint-color", "filter-tint-blend", "filter-grain-amount"])
+      await expect(page.getByTestId(id)).toBeDisabled();
+    release();
+    await expect(page.getByTestId("filter-editor")).toHaveCount(0);
+    const saved = await (await page.request.get("/api/filters")).json();
+    expect(saved.map((p: { definition: { warmth: number } }) => p.definition.warmth)).toEqual([0.4]);
+  });
+
   test("the download uses the selected filter and an export preset remembers it", async ({ page }) => {
     await page.getByTestId("play-pause-button").click();
     await page.getByTestId("filter-chip-mono").click();
