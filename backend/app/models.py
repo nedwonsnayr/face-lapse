@@ -59,3 +59,14 @@ class Image(Base):
 
     # File hash for duplicate detection (MD5 hash of original file content)
     file_hash = Column(String, nullable=True, index=True)
+
+
+class FilterPreset(Base):
+    """A saved filter look, shared by every person's timelapse (no profile_id)."""
+    __tablename__ = "filter_presets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(40), nullable=False, unique=True)
+    definition = Column(JSON, nullable=False)  # FilterDefinition v1, validated on write
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

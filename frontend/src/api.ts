@@ -1,4 +1,5 @@
 import type { FrameSelection } from "./selection";
+import type { FilterDefinition } from "./filters/definition";
 const API_BASE = "/api";
 function scoped(path: string, profileId = 1): string {
   return `${path}${path.includes("?") ? "&" : "?"}profile_id=${profileId}`;
@@ -423,6 +424,30 @@ export async function updatePhotoDate(id: number, date: string | null, profileId
   });
   if (!res.ok) throw await readError(res, "Could not update the photo date");
 }
+
+// ── Saved filter presets (shared by every person) ───────────────
+
+export interface SavedFilter { id: number; name: string; definition: unknown }
+
+async function filterRequest<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+  const res = await fetch(`${API_BASE}/filters${path}`, init);
+  if (!res.ok) throw await readError(res, fallback);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+const jsonBody = (body: unknown): RequestInit => ({
+  headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+/** Definitions are returned as unknown; callers run them through validateFilter. */
+export const filtersApi = {
+  list: () => filterRequest<SavedFilter[]>("", {}, "Could not load saved filters"),
+  create: (name: string, definition: FilterDefinition) =>
+    filterRequest<SavedFilter>("", { method: "POST", ...jsonBody({ name, definition }) }, "Could not save the filter"),
+  update: (id: number, name: string, definition: FilterDefinition) =>
+    filterRequest<SavedFilter>(`/${id}`, { method: "PUT", ...jsonBody({ name, definition }) }, "Could not save the filter"),
+  remove: (id: number) => filterRequest<void>(`/${id}`, { method: "DELETE" }, "Could not delete the filter"),
+};
 
 /** Bound to one person for the lifetime of a workspace and any async work it starts. */
 export function createProfileApi(profileId: number) {
