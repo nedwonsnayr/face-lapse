@@ -1,13 +1,16 @@
 import { useProfileApi } from "../ProfileContext";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ImageRecord, VideoJob } from "../api";
+import { filtersApi, ImageRecord, VideoJob } from "../api";
 import ExportSettings from "./ExportSettings";
 import { ALL_FRAMES, FrameSelection, selectFrames } from "../selection";
 import BufferedFrame from "./BufferedFrame";
 import SpeedSlider from "./SpeedSlider";
 import DatePicker from "./DatePicker";
 import { useSettings } from "../settings";
-import { FilterDefinition, IDENTITY, isIdentity } from "../filters/definition";
+import { FilterDefinition, IDENTITY, isIdentity, sameFilter, validateFilter } from "../filters/definition";
+import { BUILTIN_FILTERS } from "../filters/builtins";
+import FilterPicker, { FilterEntry } from "./FilterPicker";
+import FilterEditor from "./FilterEditor";
 import { Button, IconButton } from "./ui/Button";
 import cx from "./ui/cx";
 import forms from "./ui/forms.module.css";
@@ -38,6 +41,13 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   const [error, setError] = useState<string | null>(null);
   const [showDates, setShowDates] = useState(settings.showDate);
   const [filter, setFilter] = useState<FilterDefinition>(IDENTITY);
+  // Which chip the current look came from; null for an unsaved look (editor draft, deleted preset).
+  const [filterKey, setFilterKey] = useState<string | null>("builtin:original");
+  const [savedFilters, setSavedFilters] = useState<{ id: number; name: string; filter: FilterDefinition }[]>([]);
+  const [filtersError, setFiltersError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<{ mode: "new" | "edit"; id?: number; name: string; prior: { filter: FilterDefinition; key: string | null } } | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [showAge, setShowAge] = useState(!!initialBirthday);
   const [birthday, setBirthday] = useState(initialBirthday ?? "");
   const [savingBirthday, setSavingBirthday] = useState(false);
@@ -54,7 +64,83 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
     catch { if (mounted.current) setError("Could not save the birthday. Please try again."); }
     finally { if (mounted.current && request === birthdayRequest.current) setSavingBirthday(false); }
   };
+  const loadSavedFilters = useCallback(async () => {
+    try {
+      const list = await filtersApi.list();
+      const valid = list.flatMap(p => { const f = validateFilter(p.definition); return f ? [{ id: p.id, name: p.name, filter: f }] : []; });
+      if (!mounted.current) return valid;
+      setSavedFilters(valid);
+      setFiltersError(null);
+      return valid;
+    } catch {
+      if (mounted.current) setFiltersError("Couldn’t load saved filters.");
+      return null;
+    }
+  }, []);
+  useEffect(() => { void loadSavedFilters(); }, [loadSavedFilters]);
+  const filterEntries = useMemo<FilterEntry[]>(() => [
+    ...BUILTIN_FILTERS.map(b => ({ key: `builtin:${b.slug}`, testId: `filter-chip-${b.slug}`, name: b.name, filter: b.filter })),
+    ...savedFilters.map(p => ({ key: `custom:${p.id}`, testId: `filter-chip-custom-${p.id}`, name: p.name, filter: p.filter, custom: { id: p.id } })),
+  ], [savedFilters]);
+  // A saved filter that disappears (deleted elsewhere) leaves its look applied, unsaved.
+  useEffect(() => {
+    if (filterKey?.startsWith("custom:") && !filterEntries.some(e => e.key === filterKey)) setFilterKey(null);
+  }, [filterEntries, filterKey]);
+  const applyLook = (next: FilterDefinition) => {
+    setFilter(next);
+    setFilterKey(filterEntries.find(e => sameFilter(e.filter, next))?.key ?? null);
+  };
+  const openEditor = (mode: "new" | "edit", start: FilterDefinition, name: string, id?: number) => {
+    setEditor({ mode, id, name, prior: { filter, key: filterKey } });
+    setEditorError(null);
+    setFilter(start);
+    if (mode === "new") setFilterKey(null);
+  };
+  const closeEditor = (restore: boolean) => {
+    if (restore && editor) { setFilter(editor.prior.filter); setFilterKey(editor.prior.key); }
+    setEditor(null);
+    setEditorError(null);
+  };
+  const saveEditor = async () => {
+    if (!editor) return;
+    setEditorBusy(true);
+    setEditorError(null);
+    try {
+      const saved = editor.mode === "edit" && editor.id !== undefined
+        ? await filtersApi.update(editor.id, editor.name.trim(), filter)
+        : await filtersApi.create(editor.name.trim(), filter);
+      await loadSavedFilters();
+      if (!mounted.current) return;
+      setFilter(validateFilter(saved.definition) ?? filter);
+      setFilterKey(`custom:${saved.id}`);
+      setEditor(null);
+    } catch (err) {
+      if (mounted.current) setEditorError(err instanceof Error ? err.message : "Could not save the filter");
+    } finally {
+      if (mounted.current) setEditorBusy(false);
+    }
+  };
+  const deleteEdited = async () => {
+    if (editor?.id === undefined) return false;
+    setEditorBusy(true);
+    try {
+      await filtersApi.remove(editor.id);
+      await loadSavedFilters();
+      if (!mounted.current) return true;
+      // The look stays on the player as an unsaved copy.
+      setFilterKey(null);
+      setEditor(null);
+      return true;
+    } catch (err) {
+      if (mounted.current) setEditorError(err instanceof Error ? err.message : "Could not delete the filter");
+      return false;
+    } finally {
+      if (mounted.current) setEditorBusy(false);
+    }
+  };
   const [displayedImage, setDisplayedImage] = useState<ImageRecord | null>(null);
+  // Chip thumbnails show the displayed frame; refresh while paused (and once at start), never per tick.
+  const [thumb, setThumb] = useState<{ src: string; frameIndex: number } | null>(null);
   const [readySrc, setReadySrc] = useState("");
   const [visible, setVisible] = useState(document.visibilityState === "visible");
   useEffect(() => {
@@ -65,6 +151,11 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
   const requestedImage = images[Math.min(currentIndex, Math.max(0, images.length - 1))];
   const requestedSrc = requestedImage ? getAlignedImageUrl(requestedImage.id, requestedImage.content_hash, "frame") : "";
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!displayedImage || (isPlaying && thumb)) return;
+    const index = Math.max(0, images.findIndex(i => i.id === displayedImage.id));
+    setThumb({ src: getAlignedImageUrl(displayedImage.id, displayedImage.content_hash, "thumb"), frameIndex: index });
+  }, [displayedImage, isPlaying]);
 
   // Clear and restart interval whenever frameDuration or isPlaying changes
   useEffect(() => {
@@ -241,8 +332,8 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
         </span>
       </div>
 
-      {/* Player: the frame sits in a dark mat, like a print */}
-      <figure className={s.figure}>
+      {/* Player: the frame sits in a dark mat, like a print. Pinned while editing a filter. */}
+      <figure className={cx(s.figure, editor && s.pinned)}>
         <div data-testid="timelapse-player" className={s.mat}>
           {!images.length && <p style={{ color: "white", padding: 12 }}>No photos match this selection.</p>}
           {currentImage && (
@@ -322,6 +413,22 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
       <div className={s.panel}>
         <p className={cx(forms.eyebrow, s.panelTitle)}>Playback &amp; export</p>
 
+        <div className={s.filterBlock}>
+          <span className={s.filterLabel}>Filter</span>
+          <FilterPicker entries={filterEntries} selectedKey={filterKey} thumb={thumb} disabled={!!editor}
+            loadError={filtersError} onRetry={() => void loadSavedFilters()}
+            onSelect={entry => { setFilter(entry.filter); setFilterKey(entry.key); }}
+            onNew={() => openEditor("new", IDENTITY, "")}
+            onDuplicate={entry => openEditor("new", entry.filter, `${entry.name} copy`.slice(0, 40))}
+            onEdit={entry => openEditor("edit", entry.filter, entry.name, entry.custom?.id)} />
+          {editor && <FilterEditor title={editor.mode === "edit" ? "Edit filter" : "New filter"}
+            value={filter} onChange={setFilter} name={editor.name}
+            onNameChange={name => setEditor(e => e && { ...e, name })}
+            onSave={() => void saveEditor()} onCancel={() => closeEditor(true)}
+            onDelete={editor.mode === "edit" ? deleteEdited : undefined}
+            busy={editorBusy} error={editorError} />}
+        </div>
+
         <SpeedSlider value={frameDuration} onChange={setFrameDuration} />
 
         <div className={s.toggles}>
@@ -368,7 +475,7 @@ export default function Timelapse({ images: allImages, initialBirthday, onBirthd
 
       <ExportSettings person={profileId} value={{ ...selection, duration: frameDuration, dates: showDates, age: showAge, filter }}
         onChange={value => { setSelection({ date_from: value.date_from, date_to: value.date_to, sampling: value.sampling });
-          setFrameDuration(value.duration); setShowDates(value.dates); setShowAge(value.age); setFilter(value.filter ?? IDENTITY); setCurrentIndex(0); }} />
+          setFrameDuration(value.duration); setShowDates(value.dates); setShowAge(value.age); if (!editor) applyLook(value.filter ?? IDENTITY); setCurrentIndex(0); }} />
       {selection.date_from && selection.date_to && selection.date_from > selection.date_to && <p role="alert">Start date must be before the end date.</p>}
       {/* Export */}
       <div className={s.export}>

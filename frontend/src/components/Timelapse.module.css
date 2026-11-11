@@ -116,6 +116,33 @@
   border-top: 1px solid var(--hairline);
 }
 
+/* ── Filters ─────────────────────────────────────── */
+
+.filterBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+/* While the filter editor is open the player stays in view as the live preview. */
+.pinned {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: var(--space-2);
+  background: var(--surface);
+}
+
+.pinned .mat {
+  max-width: min(100%, calc((100dvh - var(--topbar-h)) * 0.3));
+}
+
 .panelTitle {
   margin-bottom: calc(-1 * var(--space-1));
 }
@@ -218,6 +245,15 @@
 
   .mat {
     max-width: min(100%, 440px);
+  }
+
+  /* The page scrolls here (not the pane), under the sticky top bar. */
+  .pinned {
+    top: var(--topbar-h);
+  }
+
+  .pinned .mat {
+    max-width: min(100%, 200px);
   }
 }
 
