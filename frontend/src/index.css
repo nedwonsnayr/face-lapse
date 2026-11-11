@@ -39,6 +39,10 @@
   --scrim-strong: rgba(20, 19, 17, 0.65);
   --shadow-ink: rgba(28, 26, 23, 0.06);
   --shadow-ink-deep: rgba(28, 26, 23, 0.12);
+  /* Labels and outlines drawn ON a photograph: fixed in both themes, since the
+     photo underneath doesn't change with the theme. Not in light-dark(). */
+  --on-photo-ink: #1c1a17;
+  --on-photo-accent: #a4372a;
 
   /* Legacy names, mapped onto the new palette */
   --bg: var(--paper);

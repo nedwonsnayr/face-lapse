@@ -27,3 +27,8 @@
 - The "No photos match" text on the mat.
 ## Tech debt
 - The pre-paint script duplicates the theme parsing in `settings.tsx`. It's about 10 lines, and comments point each copy at the other.
+
+## Review fix (Codex, PR27)
+- **Problem:** face-picker number labels used `--ink` behind white text, so they became white on cream in Dark (about 1.2:1).
+- **Fix:** added fixed `--on-photo-ink` and `--on-photo-accent` tokens (the same in both themes), used for the face outline and labels.
+- **Test:** `face-selection.spec.ts` now checks the label colors under dark emulation.
