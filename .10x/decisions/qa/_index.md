@@ -22,3 +22,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - photo-date-fallback: verification complete; see feature review.
 
 - settings-dark-mode: 69/69 e2e incl. 5 new; contrast script; visual pass. See [settings-dark-mode](settings-dark-mode.md).
+
+- timelapse-filters: 74/74 e2e, parity at most 1/255; see [timelapse-filters](timelapse-filters.md).

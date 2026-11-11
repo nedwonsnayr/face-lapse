@@ -1,3 +1,9 @@
+# Handoff: timelapse-filters → DevOps + SRE
+
+Ships through merge to main. Migration 011 (new table only) runs at startup. Rollback is to revert the PR; the table is harmless. Reviews are in reviews/2026-11-10-timelapse-filters-{qa-report,security-review}.md. Watch export phase timings and video disk use after deploy.
+
+## Previous history
+
 # Handoff: timelapse-filters → QA + Security
 
 What was built is in decisions/sde/timelapse-filters.md. To test:

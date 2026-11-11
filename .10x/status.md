@@ -1,3 +1,9 @@
+# Timelapse filters: verified, PR next
+
+Results: 69/69 backend tests, 74/74 Playwright, a clean build, and parity at most 1/255. QA and security found no blockers. Fixed during QA: the SwiftShader flag that broke camera capture, the pinned player size on phones, and the cold-start wait. Grain makes MP4s 3.6–6.3× larger, and a filtered export costs about 100–150 ms per frame.
+
+## Previous history
+
 # Timelapse filters: implementation complete
 
 All build steps are done on `timelapse-filters`, over 9 commits. Backend: 69 unit tests pass. Playwright: the parity spec (33 cases, max diff 1/255) and the 4 filters specs pass, repeated twice. Verified by hand in the browser pane: picker thumbnails, the live editor, saving, and a filtered MP4 frame where only the photo changes. A filtered export costs about 100–150 ms per frame. Next: the full regression suite, the visual pass in both themes and on mobile, and QA/security reviews.
