@@ -1,3 +1,27 @@
+# Timelapse filters: PR28 ready for review
+
+PR: https://github.com/nedwonsnayr/face-lapse/pull/28. It ships on merge to main, and migration 011 runs at startup. Ops notes are in decisions/{devops,sre}/timelapse-filters.md. The design system artifact (version 8) now has the FilterChip and FilterEditor patterns. Not yet done: GitHub CI results (Auto-fix is watching) and export timing on the VM after deploy.
+
+## Previous history
+
+# Timelapse filters: verified, PR next
+
+Results: 69/69 backend tests, 74/74 Playwright, a clean build, and parity at most 1/255. QA and security found no blockers. Fixed during QA: the SwiftShader flag that broke camera capture, the pinned player size on phones, and the cold-start wait. Grain makes MP4s 3.6–6.3× larger, and a filtered export costs about 100–150 ms per frame.
+
+## Previous history
+
+# Timelapse filters: implementation complete
+
+All build steps are done on `timelapse-filters`, over 9 commits. Backend: 69 unit tests pass. Playwright: the parity spec (33 cases, max diff 1/255) and the 4 filters specs pass, repeated twice. Verified by hand in the browser pane: picker thumbnails, the live editor, saving, and a filtered MP4 frame where only the photo changes. A filtered export costs about 100–150 ms per frame. Next: the full regression suite, the visual pass in both themes and on mobile, and QA/security reviews.
+
+## Previous history
+
+# Timelapse filters: design and planning complete
+
+The user approved a full-look filter feature: 10 built-ins, custom presets (server-side, shared by all people) with every control tunable, and moving grain. Spec: specs/2026-11-10-timelapse-filters-design.md. ADR-012: one pipeline, WebGL2 for playback and numpy for export, matched within 2/255. Twelve plan steps, on branch `timelapse-filters`. PR27 is merged.
+
+## Previous history
+
 # Settings + dark mode: verified, PR next
 
 69/69 e2e tests (5 new), build clean, and the visual pass in both themes is done. QA and security found no blockers. The design system artifact now has the Dark theme, veil and scrim tokens, a Themes section, the settings icon and the Segmented card (versions 5–6).

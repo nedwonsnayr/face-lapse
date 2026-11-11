@@ -10,7 +10,8 @@ import re
 from datetime import date, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session
 
@@ -20,6 +21,7 @@ from ..database import get_db
 from ..models import Image
 from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
 from ..services.video import generate_video
+from ..services.filters import FilterDefinition, canonical_filter
 from ..services.ordering import library_order
 from .profiles import get_profile_id
 from ..services.selection import select_frames
@@ -34,7 +36,14 @@ _jobs_lock = threading.Lock()
 _MAX_JOBS = 20
 
 
-def _export_key(metadata: list[dict], duration: float, dates: bool, age: bool) -> str:
+class GenerateBody(BaseModel):
+    """Optional JSON body; old clients that send none get an unfiltered export."""
+    model_config = ConfigDict(extra="forbid")
+    filter: FilterDefinition | None = None
+
+
+def _export_key(metadata: list[dict], duration: float, dates: bool, age: bool,
+                photo_filter: FilterDefinition | None = None) -> str:
     frames = []
     for item in metadata:
         stat = Path(item["path"]).stat()
@@ -44,7 +53,8 @@ def _export_key(metadata: list[dict], duration: float, dates: bool, age: bool) -
             item.get("date").isoformat() if dates and item.get("date") else None,
             item.get("age") if age else None,
         ])
-    payload = ["styled-export-v1", duration, dates, age, frames]
+    # v2: the canonical filter (None for identity) is part of the rendered result.
+    payload = ["styled-export-v2", duration, dates, age, canonical_filter(photo_filter), frames]
     return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -52,7 +62,8 @@ def _public_job(job: dict) -> dict:
     return {key: value for key, value in job.items() if not key.startswith("_")}
 
 
-def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool) -> None:
+def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool,
+             photo_filter: FilterDefinition | None = None) -> None:
     t0 = time.monotonic()
 
     def progress(phase: str, completed: int, total: int) -> None:
@@ -63,7 +74,7 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
     try:
         video_path = generate_video(
             image_metadata, frame_duration=frame_duration, show_dates=show_dates,
-            show_age=show_age, on_progress=progress,
+            show_age=show_age, on_progress=progress, photo_filter=photo_filter,
         )
         # Persist ownership in the filename, so downloads remain scoped after a
         # process restart evicts the in-memory job registry. Legacy files are Ryan's.
@@ -77,7 +88,7 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
         # Such a result can be downloaded, but must not be reused as a cache hit.
         if video_path:
             try:
-                stable_key = _export_key(image_metadata, frame_duration, show_dates, show_age)
+                stable_key = _export_key(image_metadata, frame_duration, show_dates, show_age, photo_filter)
             except OSError:
                 pass
     except Exception:
@@ -95,9 +106,10 @@ def _run_job(job_id: str, image_metadata: list[dict], frame_duration: float, sho
             log.error("Video generation failed while rendering or encoding")
 
 
-def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool, profile_id: int = 1) -> dict:
+def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bool, show_age: bool, profile_id: int = 1,
+               photo_filter: FilterDefinition | None = None) -> dict:
     try:
-        key = _export_key(image_metadata, frame_duration, show_dates, show_age)
+        key = _export_key(image_metadata, frame_duration, show_dates, show_age, photo_filter)
     except OSError:
         raise HTTPException(status_code=409, detail="Photos changed. Refresh and try the export again.")
     with _jobs_lock:
@@ -125,7 +137,7 @@ def _start_job(image_metadata: list[dict], frame_duration: float, show_dates: bo
         response = _public_job(job)
         try:
             threading.Thread(
-                target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates, show_age), daemon=True
+                target=_run_job, args=(job_id, image_metadata, frame_duration, show_dates, show_age, photo_filter), daemon=True
             ).start()
         except Exception:
             del _jobs[job_id]
@@ -153,6 +165,7 @@ def generate_timelapse(
     date_from: date | None = None,
     date_to: date | None = None,
     sampling: str = Query(default="all", pattern="^(all|day|week|month)$"),
+    body: GenerateBody | None = Body(default=None),
     db: Session = Depends(get_db),
     profile_id: int = Depends(get_profile_id),
 ):
@@ -220,11 +233,14 @@ def generate_timelapse(
     ]
 
     # Generate video in the background (see _start_job)
+    photo_filter = body.filter if body and body.filter and not body.filter.is_identity() else None
     log.info(
-        "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s",
+        "Generating video: %d frames, %.2fs/frame (%.1fs total), dates=%s, age=%s, filter=%s",
         len(valid_images), frame_duration, len(valid_images) * frame_duration, show_dates, show_age,
+        "yes" if photo_filter else "no",
     )
-    return JSONResponse(status_code=202, content=_start_job(image_metadata, frame_duration, show_dates, show_age, profile_id=profile_id))
+    return JSONResponse(status_code=202, content=_start_job(
+        image_metadata, frame_duration, show_dates, show_age, profile_id=profile_id, photo_filter=photo_filter))
 
 
 @router.get("/jobs/{job_id}")

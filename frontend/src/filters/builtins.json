@@ -1,0 +1,12 @@
+[
+  { "slug": "original", "name": "Original", "filter": {} },
+  { "slug": "mono", "name": "Mono", "filter": { "grayscale": 1, "contrast": 1.1 } },
+  { "slug": "noir", "name": "Noir", "filter": { "grayscale": 1, "contrast": 1.4, "brightness": 0.92, "vignette": { "strength": 0.5, "size": 0.5 } } },
+  { "slug": "vivid", "name": "Vivid", "filter": { "contrast": 1.15, "saturation": 1.4, "brightness": 1.03 } },
+  { "slug": "warm", "name": "Warm", "filter": { "warmth": 0.2, "saturation": 1.15, "brightness": 1.04, "tint": { "color": "#ffb36b", "blend": "soft-light", "strength": 0.25 } } },
+  { "slug": "faded", "name": "Faded", "filter": { "fade": 0.5, "saturation": 0.8, "contrast": 0.95 } },
+  { "slug": "vintage", "name": "Vintage", "filter": { "warmth": 0.45, "contrast": 1.05, "fade": 0.25, "vignette": { "strength": 0.35, "size": 0.5 }, "grain": { "amount": 0.25, "size": 0.3 } } },
+  { "slug": "cool", "name": "Cool", "filter": { "saturation": 0.95, "brightness": 1.02, "tint": { "color": "#4fa3ff", "blend": "soft-light", "strength": 0.3 } } },
+  { "slug": "matte", "name": "Matte", "filter": { "fade": 0.35, "contrast": 0.9, "saturation": 0.9, "tint": { "color": "#2b3a55", "blend": "screen", "strength": 0.12 } } },
+  { "slug": "film", "name": "Film", "filter": { "contrast": 1.08, "saturation": 0.9, "warmth": 0.12, "fade": 0.15, "grain": { "amount": 0.45, "size": 0.45 }, "vignette": { "strength": 0.25, "size": 0.4 } } }
+]

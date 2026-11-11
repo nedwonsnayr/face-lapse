@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { FrameSelection } from "../selection";
 import { Button } from "./ui/Button";
+import { FilterDefinition, validateFilter } from "../filters/definition";
 import forms from "./ui/forms.module.css";
 import s from "./ArchiveTools.module.css";
 
-export interface ExportPreset extends FrameSelection { duration: number; dates: boolean; age: boolean }
+/** `filter` is a copy, so a preset keeps its look even after a saved filter is deleted. */
+export interface ExportPreset extends FrameSelection { duration: number; dates: boolean; age: boolean; filter?: FilterDefinition }
 interface SavedPreset extends ExportPreset { name: string }
 export default function ExportSettings({ person, value, onChange }: { person: number; value: ExportPreset; onChange: (v: ExportPreset) => void }) {
   const storageKey = `face-lapse:export-presets:${person}`;
@@ -13,7 +15,9 @@ export default function ExportSettings({ person, value, onChange }: { person: nu
       const stored = JSON.parse(localStorage.getItem(storageKey) || "[]");
       return Array.isArray(stored) ? stored.filter(p => typeof p.name === "string" && p.name.length <= 40 &&
         ["all", "day", "week", "month"].includes(p.sampling) && typeof p.date_from === "string" && typeof p.date_to === "string" &&
-        typeof p.duration === "number" && p.duration >= .05 && p.duration <= 1 && typeof p.dates === "boolean" && typeof p.age === "boolean").slice(0, 10) : [];
+        typeof p.duration === "number" && p.duration >= .05 && p.duration <= 1 && typeof p.dates === "boolean" && typeof p.age === "boolean")
+        // Older presets have no filter (Original); a corrupt filter falls back to Original too.
+        .map(p => ({ ...p, filter: p.filter === undefined ? undefined : validateFilter(p.filter) ?? undefined })).slice(0, 10) : [];
     } catch { return []; }
   });
   const [name, setName] = useState("");
@@ -39,7 +43,7 @@ export default function ExportSettings({ person, value, onChange }: { person: nu
         <Button disabled={!name.trim()} onClick={() => { persist([...presets.filter(p => p.name !== name.trim()), { ...value, name: name.trim() }].slice(-10)); setName(""); }}>Save preset</Button>
       </div>
       {presets.map(p => <div className={s.controls} key={p.name}>
-        <Button onClick={() => onChange(p)}>{p.name}</Button>
+        <Button onClick={() => onChange({ ...p, filter: p.filter })}>{p.name}</Button>
         <Button variant="ghost" aria-label={`Delete preset ${p.name}`} onClick={() => persist(presets.filter(v => v.name !== p.name))}>Remove</Button>
       </div>)}
       {message && <p role="status" className={s.meta}>{message}</p>}

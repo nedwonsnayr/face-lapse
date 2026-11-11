@@ -19,3 +19,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - photo-date-fallback: verification complete; see feature review.
 
 - settings-dark-mode: no new attack surface; localStorage values validated. See [settings-dark-mode](settings-dark-mode.md).
+
+- timelapse-filters: no blockers; see [timelapse-filters](timelapse-filters.md).

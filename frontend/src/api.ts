@@ -1,4 +1,5 @@
 import type { FrameSelection } from "./selection";
+import type { FilterDefinition } from "./filters/definition";
 const API_BASE = "/api";
 function scoped(path: string, profileId = 1): string {
   return `${path}${path.includes("?") ? "&" : "?"}profile_id=${profileId}`;
@@ -311,7 +312,8 @@ export async function generateVideo(
   showAge: boolean = false,
   onProgress?: (job: VideoJob) => void,
   profileId = 1,
-  selection?: FrameSelection
+  selection?: FrameSelection,
+  filter: FilterDefinition | null = null
 ): Promise<GenerateResponse> {
   const params = new URLSearchParams({
     frame_duration: frameDuration.toString(),
@@ -328,7 +330,7 @@ export async function generateVideo(
   }
   const res = await fetch(
     scoped(`${API_BASE}/video/generate?${params.toString()}`, profileId),
-    { method: "POST" }
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filter }) }
   );
   if (!res.ok) throw await readError(res, "Video generation failed");
   let job: VideoJob = await res.json();
@@ -424,6 +426,30 @@ export async function updatePhotoDate(id: number, date: string | null, profileId
   if (!res.ok) throw await readError(res, "Could not update the photo date");
 }
 
+// ── Saved filter presets (shared by every person) ───────────────
+
+export interface SavedFilter { id: number; name: string; definition: unknown }
+
+async function filterRequest<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+  const res = await fetch(`${API_BASE}/filters${path}`, init);
+  if (!res.ok) throw await readError(res, fallback);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+const jsonBody = (body: unknown): RequestInit => ({
+  headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+});
+
+/** Definitions are returned as unknown; callers run them through validateFilter. */
+export const filtersApi = {
+  list: () => filterRequest<SavedFilter[]>("", {}, "Could not load saved filters"),
+  create: (name: string, definition: FilterDefinition) =>
+    filterRequest<SavedFilter>("", { method: "POST", ...jsonBody({ name, definition }) }, "Could not save the filter"),
+  update: (id: number, name: string, definition: FilterDefinition) =>
+    filterRequest<SavedFilter>(`/${id}`, { method: "PUT", ...jsonBody({ name, definition }) }, "Could not save the filter"),
+  remove: (id: number) => filterRequest<void>(`/${id}`, { method: "DELETE" }, "Could not delete the filter"),
+};
+
 /** Bound to one person for the lifetime of a workspace and any async work it starts. */
 export function createProfileApi(profileId: number) {
   return {
@@ -441,8 +467,9 @@ export function createProfileApi(profileId: number) {
     selectFace: (id: number, faceIndex: number) => selectFace(id, faceIndex, profileId),
     getAlignedImageUrl: (id: number, version?: string, size: ImageSize = "full") => getAlignedImageUrl(id, version, size, profileId),
     getOriginalImageUrl: (id: number, version?: string, size: ImageSize = "full") => getOriginalImageUrl(id, version, size, profileId),
-    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void, selection?: FrameSelection) =>
-      generateVideo(duration, dates, birthday, age, progress, profileId, selection),
+    generateVideo: (duration: number, dates = false, birthday: string | null = null, age = false, progress?: (job: VideoJob) => void,
+      selection?: FrameSelection, filter: FilterDefinition | null = null) =>
+      generateVideo(duration, dates, birthday, age, progress, profileId, selection, filter),
     getVideoUrl: (filename: string) => scoped(`${API_BASE}/video/${encodeURIComponent(filename)}`, profileId),
   };
 }

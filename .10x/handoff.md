@@ -1,3 +1,29 @@
+# Handoff: timelapse-filters → DevOps + SRE
+
+Ships through merge to main. Migration 011 (new table only) runs at startup. Rollback is to revert the PR; the table is harmless. Reviews are in reviews/2026-11-10-timelapse-filters-{qa-report,security-review}.md. Watch export phase timings and video disk use after deploy.
+
+## Previous history
+
+# Handoff: timelapse-filters → QA + Security
+
+What was built is in decisions/sde/timelapse-filters.md. To test:
+- the full Playwright suite (with the SwiftShader flags now in the config)
+- light and dark themes, at desktop and 390 px, with the editor open (sticky player)
+- filtered export timing and size versus unfiltered
+
+To review:
+- `/api/filters` input limits and the export body (`extra=forbid`)
+- preset names render as text only
+- the 50-preset cap
+
+## Previous history
+
+# Handoff: timelapse-filters → SDE
+
+Read ADR-012 and the spec. The pipeline formulas there are normative. Tasks are in decisions/engineering-manager/timelapse-filters.md, and the approach is in senior-engineer/timelapse-filters.md. Migration 011 adds `filter_presets`.
+
+## Previous history
+
 # Handoff: settings-dark-mode → DevOps
 
 Frontend-only. The usual merge-to-main deploy ships it, with no migration or environment change. Rollback is to revert the PR. Reviews are in reviews/2026-11-10-settings-dark-mode-*.md.

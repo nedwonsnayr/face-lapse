@@ -22,3 +22,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - photo-date-fallback: implemented, initial tests passed; final verification next.
 
 - settings-dark-mode: built per ADR-011; one deviation (grid/list toggle still persists). See [settings-dark-mode](settings-dark-mode.md).
+
+- timelapse-filters: built as planned; see [timelapse-filters](timelapse-filters.md).

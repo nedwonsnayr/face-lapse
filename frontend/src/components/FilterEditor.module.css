@@ -1,0 +1,138 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.nameRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.label {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.group legend {
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-1);
+  padding: 0;
+}
+
+.control {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  column-gap: var(--space-2);
+}
+
+.range {
+  grid-column: 1 / -1;
+}
+
+.readout {
+  min-width: 3.5ch;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: right;
+}
+
+.reset {
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.reset:hover:not(:disabled) {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.reset:disabled {
+  visibility: hidden;
+}
+
+.tintRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.color {
+  width: 40px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.error {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spacer {
+  flex: 1;
+}

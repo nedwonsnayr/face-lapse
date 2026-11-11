@@ -1,0 +1,11 @@
+# DBA: timelapse-filters
+- **New table `filter_presets`:**
+  - `id` INTEGER PK AUTOINCREMENT
+  - `name` VARCHAR(40) NOT NULL UNIQUE
+  - `definition` JSON NOT NULL
+  - `created_at`, `updated_at`
+- **No `profile_id`:** presets are shared by every person (user decision).
+- **Migration 011:** `CREATE TABLE IF NOT EXISTS`, which is idempotent and touches no existing table. `create_all` also creates it on a fresh database. `down` refuses, so the data is kept; older code ignores the table.
+- **Case-insensitive uniqueness** is enforced in the router (`lower(name)`). The exact-match UNIQUE index guards against races. The table is capped at 50 rows by the API, so no extra index is needed.
+- **Definitions are stored in full**, validated with Pydantic on write. The frontend validates again on read and drops definitions it doesn't recognise, which allows future versions.
+- **Backups:** the nightly B2 backup copies the whole SQLite file, so the new table is covered with no change.

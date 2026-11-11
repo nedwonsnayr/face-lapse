@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from .database import engine, Base
 from .config import ensure_directories, DATA_DIR, STATIC_DIR, CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
 from .access import CloudflareAccessMiddleware
-from .routers import images, video, profiles, archive
+from .routers import images, video, profiles, archive, filters
 
 # ── Logging setup ────────────────────────────────────────────────
 logging.basicConfig(
@@ -105,6 +105,7 @@ app.include_router(archive.router, prefix="/api/archive", tags=["archive"])
 app.include_router(profiles.router, prefix="/api/profiles", tags=["profiles"])
 app.include_router(images.router, prefix="/api/images", tags=["images"])
 app.include_router(video.router, prefix="/api/video", tags=["video"])
+app.include_router(filters.router, prefix="/api/filters", tags=["filters"])
 
 
 @app.exception_handler(Exception)

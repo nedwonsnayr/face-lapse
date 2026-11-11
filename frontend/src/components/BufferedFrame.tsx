@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "./ui/Button";
+import { FilterDefinition, isIdentity } from "../filters/definition";
+import FilterCanvas from "../filters/FilterCanvas";
+import { webgl2Supported } from "../filters/FilterRenderer";
 
 /** A small decoded-image cache. Retain at most 12 frames, including lookahead. */
 export class FrameCache {
@@ -41,11 +44,16 @@ export class FrameCache {
  */
 const SLOW_FRAME_MS = 500;
 
-export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
+export default function BufferedFrame({ src, ahead, alt, className, onReady, filter, frameIndex = 0 }: {
   src: string; ahead: string[]; alt: string; className: string; onReady: (url: string) => void;
+  /** Applied on top of the decoded frame; identity or null shows the plain image. */
+  filter?: FilterDefinition | null; frameIndex?: number;
 }) {
   const cache = useRef(new FrameCache());
-  const [displayed, setDisplayed] = useState<{ src: string; alt: string } | null>(null);
+  const [displayed, setDisplayed] = useState<{ src: string; alt: string; image: HTMLImageElement | null; index: number } | null>(null);
+  const [glUnavailable, setGlUnavailable] = useState(() => !webgl2Supported());
+  const requestedIndex = useRef(frameIndex);
+  requestedIndex.current = frameIndex;
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   const [slow, setSlow] = useState(false);
@@ -62,9 +70,10 @@ export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     setFailed(false);
+    const index = requestedIndex.current;
     const load = (attempt: number) => {
       cache.current.load(src).then(() => {
-        if (active) { setDisplayed({ src, alt }); ready.current(src); }
+        if (active) { setDisplayed({ src, alt, image: cache.current.entries.get(src)?.image ?? null, index }); ready.current(src); }
       }).catch(() => {
         if (!active) return;
         cache.current.remove(src);
@@ -82,8 +91,14 @@ export default function BufferedFrame({ src, ahead, alt, className, onReady }: {
       void pending.catch(() => { if (cache.current.entries.get(url)?.promise === pending) cache.current.remove(url); });
     }
   }, [aheadKey]);
+  const filtered = !!filter && !isIdentity(filter);
   return <>
     {displayed && <img data-testid="timelapse-frame" src={displayed.src} alt={displayed.alt} className={className} />}
+    {displayed && filtered && !glUnavailable && <FilterCanvas testId="timelapse-filtered-frame" src={displayed.src} image={displayed.image}
+      filter={filter} frameIndex={displayed.index} className={className} onUnavailable={() => setGlUnavailable(true)} />}
+    {filtered && glUnavailable && <p role="note" data-testid="filter-preview-unavailable" style={{ position: "absolute", top: 8, left: 8, right: 8, margin: 0, color: "white", background: "rgba(0,0,0,.7)", textAlign: "center", padding: 6, fontSize: 12 }}>
+      Filter preview isn’t available in this browser; the download will still use it.
+    </p>}
     {(failed || (waiting && (slow || !displayed))) && <div role="status" style={{ position: "absolute", bottom: 8, left: 8, right: 8, color: "white", background: "rgba(0,0,0,.7)", textAlign: "center", padding: 8 }}>
       {failed ? <><span>Couldn’t load this frame. </span><Button onClick={() => { cache.current.remove(src); setRetry(n => n + 1); }}>Retry frame</Button></> : "Loading frame…"}
     </div>}

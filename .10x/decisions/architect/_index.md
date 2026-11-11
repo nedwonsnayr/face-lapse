@@ -20,3 +20,5 @@ Active features: [ui-revamp](ui-revamp.md) — ADR-001, ADR-002
 - photo-date-fallback: approved explicit date provenance and correction; ADR-010.
 
 - settings-dark-mode: ADR-011; SettingsProvider + light-dark() tokens. See [settings-dark-mode](settings-dark-mode.md).
+
+- timelapse-filters: ADR-012; see [timelapse-filters](timelapse-filters.md).

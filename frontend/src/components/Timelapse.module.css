@@ -42,6 +42,8 @@
 }
 
 .frame {
+  /* The <img> and the filtered <canvas> share one cell; the canvas covers the image. */
+  grid-area: 1 / 1;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
@@ -112,6 +114,38 @@
   gap: var(--space-4);
   padding-top: var(--space-4);
   border-top: 1px solid var(--hairline);
+}
+
+/* ── Filters ─────────────────────────────────────── */
+
+.filterBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.filterLabel {
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+}
+
+/* While the filter editor is open the player stays in view as the live preview. */
+.pinned {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-bottom: var(--space-2);
+  background: var(--surface);
+}
+
+.pinned .mat {
+  min-width: 0;
+  max-width: min(100%, calc((100dvh - var(--topbar-h)) * 0.3));
+}
+
+.pinned .caption {
+  min-height: 0;
 }
 
 .panelTitle {
@@ -216,6 +250,15 @@
 
   .mat {
     max-width: min(100%, 440px);
+  }
+
+  /* The page scrolls here (not the pane), under the sticky top bar. */
+  .pinned {
+    top: var(--topbar-h);
+  }
+
+  .pinned .mat {
+    max-width: min(100%, 170px);
   }
 }
 

@@ -1,0 +1,12 @@
+# SRE: timelapse-filters
+- **New load:** filtered exports cost about 100–150 ms per frame of extra CPU (M-series measurement; the ARM VM may be slower). The single-active-export admission (ADR-007) still bounds concurrency.
+- **Disk:** grain makes MP4s 3.6× (0.45) to 6.3× (max) larger. Video retention is unchanged, so watch `data/videos` after heavy use.
+- **Signals:** the existing logs.
+  - `Generating video: ... filter=yes|no` per request.
+  - `Export rendered N frames in Xs` for the render phase. Compare filtered against unfiltered.
+  - `Export encoding finished in Xs` grows with grain (bigger bitstream).
+- **Runbook:**
+  - **Filtered exports slow or timing out:** check the render-phase time in the logs. The client already shows progress, and the job timeout is unchanged. Short-term mitigation: use a look without grain or vignette, or export at a coarser sampling. Long-term option: a thread pool for frame rendering (numpy releases the GIL).
+  - **Preview shows "Filter preview isn't available":** the device lacks WebGL2 or lost its context. Downloads are unaffected, and a reload recreates the context.
+  - **Presets missing:** check `/api/filters` returns 200. The UI keeps the built-ins and shows a retry message.
+- **SLO:** none new. Export success rate is unchanged.

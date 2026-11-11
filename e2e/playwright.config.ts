@@ -23,7 +23,12 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { browserName: "chromium" },
+      use: {
+        browserName: "chromium",
+        // Let headless/GPU-less CI fall back to software WebGL2 for filter previews. Do not add
+        // --use-angle=swiftshader: forcing it breaks canvas.captureStream (camera capture test).
+        launchOptions: { args: ["--enable-unsafe-swiftshader"] },
+      },
     },
   ],
   webServer: {

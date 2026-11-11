@@ -14,6 +14,7 @@ from typing import Any
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from ..config import DEFAULT_FRAME_DURATION, VIDEOS_DIR
+from .filters import FilterDefinition, apply_filter
 
 log = logging.getLogger("face-lapse.video")
 
@@ -51,12 +52,19 @@ def _font(name: str, size: int):
     return ImageFont.truetype(str(_FONT_DIR / name), size)
 
 
-def render_video_frame(image_path: str, date_label: str | None = None, age: int | None = None) -> Image.Image:
-    """Compose the photo and optional independent captions; never edit the source."""
+def render_video_frame(
+    image_path: str, date_label: str | None = None, age: int | None = None,
+    photo_filter: FilterDefinition | None = None, frame_index: int = 0,
+) -> Image.Image:
+    """Compose the photo and optional independent captions; never edit the source.
+
+    The filter applies to the photo only, never to the mat, paper or captions.
+    """
     canvas = _background().copy()
 
     with Image.open(image_path) as source:
         photo = ImageOps.contain(source.convert("RGB"), (1024, 1384), Image.Resampling.LANCZOS)
+    photo = apply_filter(photo, photo_filter, frame_index)
     canvas.paste(photo, (60 + (1080 - photo.width) // 2, 48 + (1440 - photo.height) // 2))
     draw = ImageDraw.Draw(canvas)
     if date_label:
@@ -74,6 +82,7 @@ def generate_video(
     show_dates: bool = False,
     show_age: bool = False,
     on_progress: Callable[[str, int, int], None] | None = None,
+    photo_filter: FilterDefinition | None = None,
 ) -> str | None:
     """Compose uniform styled frames, then encode at the selected playback speed."""
     if not image_metadata:
@@ -91,7 +100,7 @@ def generate_video(
                 taken = metadata.get("date")
                 label = f"{taken:%B} {taken.day}, {taken.year}" if show_dates and taken else None
                 age = metadata.get("age") if show_age else None
-                frame = render_video_frame(metadata["path"], label, age)
+                frame = render_video_frame(metadata["path"], label, age, photo_filter, index)
                 frame.save(Path(temp) / f"frame_{index:06d}.jpg", quality=95, subsampling=0)
                 frame.close()
                 if on_progress:

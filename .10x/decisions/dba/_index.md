@@ -15,3 +15,5 @@
 - photo-date-fallback: approved explicit date provenance and correction; ADR-010.
 
 - settings-dark-mode: no schema change; device localStorage only. See [settings-dark-mode](settings-dark-mode.md).
+
+- timelapse-filters: `filter_presets` table, migration 011; see [timelapse-filters](timelapse-filters.md).

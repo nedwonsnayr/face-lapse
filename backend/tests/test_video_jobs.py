@@ -67,6 +67,18 @@ class VideoJobTests(unittest.TestCase):
         self.source.write_bytes(b'changed source')
         self.assertNotEqual(base, key(self.metadata, .05, True, True))
 
+    def test_key_covers_the_filter_and_treats_identity_as_none(self):
+        from backend.app.services.filters import FilterDefinition
+        base = {"version": 1, "brightness": 1, "contrast": 1, "saturation": 1, "grayscale": 0, "warmth": 0, "hue": 0,
+                "fade": 0, "tint": {"color": "#ffffff", "blend": "soft-light", "strength": 0},
+                "vignette": {"strength": 0, "size": .5}, "grain": {"amount": 0, "size": .5}}
+        key = self.video._export_key
+        plain = key(self.metadata, .05, True, True)
+        self.assertEqual(plain, key(self.metadata, .05, True, True, FilterDefinition.model_validate(base)))
+        mono = key(self.metadata, .05, True, True, FilterDefinition.model_validate({**base, "grayscale": 1}))
+        grain = key(self.metadata, .05, True, True, FilterDefinition.model_validate({**base, "grain": {"amount": .5, "size": .5}}))
+        self.assertEqual(len({plain, mono, grain}), 3)
+
     def test_failed_missing_and_mutated_results_are_not_reused(self):
         job = self.start()
         self.finish(job, fail=True)
