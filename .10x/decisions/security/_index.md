@@ -21,3 +21,4 @@ Active features: [ui-revamp](ui-revamp.md)
 - settings-dark-mode: no new attack surface; localStorage values validated. See [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: no blockers; see [timelapse-filters](timelapse-filters.md).
+- timelapse-prefetch: no findings; see [timelapse-prefetch](timelapse-prefetch.md).

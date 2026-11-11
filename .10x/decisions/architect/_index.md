@@ -22,3 +22,5 @@ Active features: [ui-revamp](ui-revamp.md) — ADR-001, ADR-002
 - settings-dark-mode: ADR-011; SettingsProvider + light-dark() tokens. See [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: ADR-012; see [timelapse-filters](timelapse-filters.md).
+
+- timelapse-prefetch: ADR-013; network prefetch ~3 s ahead + 8-frame decode window. See [timelapse-prefetch](timelapse-prefetch.md).

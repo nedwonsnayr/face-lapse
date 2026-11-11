@@ -23,3 +23,4 @@
 - settings-dark-mode: no new runtime surface; check by opening the site in dark mode. See [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: export CPU and disk notes, runbook; see [timelapse-filters](timelapse-filters.md).
+- timelapse-prefetch: see [timelapse-prefetch](timelapse-prefetch.md).

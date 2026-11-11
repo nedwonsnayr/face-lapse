@@ -4,7 +4,7 @@ import { FilterDefinition, isIdentity } from "../filters/definition";
 import FilterCanvas from "../filters/FilterCanvas";
 import { webgl2Supported } from "../filters/FilterRenderer";
 
-/** A small decoded-image cache. Retain at most 12 frames, including lookahead. */
+/** A small decoded-image cache. Retain at most 16 frames: the 8-frame decode window plus a few behind. */
 export class FrameCache {
   entries = new Map<string, { image: HTMLImageElement; promise: Promise<void>; cancel: () => void }>();
   load(url: string): Promise<void> {
@@ -30,7 +30,7 @@ export class FrameCache {
       image.src = url;
     });
     this.entries.set(url, { image, promise, cancel });
-    while (this.entries.size > 12) this.remove(this.entries.keys().next().value!);
+    while (this.entries.size > 16) this.remove(this.entries.keys().next().value!);
     return promise;
   }
   remove(url: string) { this.entries.get(url)?.cancel(); this.entries.delete(url); }

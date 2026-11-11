@@ -1,3 +1,21 @@
+# Timelapse prefetch: verified, shipping
+
+Built per ADR-013. 79/79 e2e and the build pass. A/B under jittery latency: 11.4 → 16.6 fps, and stalls over 200 ms dropped from 16 to 0. QA and security found nothing. Next: PR, admin merge and deploy (the user authorized this on 2026-11-11), then a production check.
+
+## Previous history
+
+# Timelapse prefetch: design and planning complete
+
+The bug: playback stalls with "Loading frame…". Measured in production, it's network-bound: fetch p90 is about 200 ms and the worst case about 500 ms, against a 0.2 s buffer. Playback ran at about 100 ms per frame against 50 ms set. The PR28 filters were ruled out by measurement. The user approved time-based prefetch (ADR-013). Branch `timelapse-prefetch`.
+
+Tasks:
+1. FramePrefetcher module with tests
+2. Wire it into Timelapse; decode window 8, cache 16
+3. Full e2e + build, then re-measure playback with added latency
+4. State, PR, admin merge and deploy (the user authorized this on 2026-11-11), then verify in production
+
+## Previous history
+
 # Timelapse filters: PR28 ready for review
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/28. It ships on merge to main, and migration 011 runs at startup. Ops notes are in decisions/{devops,sre}/timelapse-filters.md. The design system artifact (version 8) now has the FilterChip and FilterEditor patterns. Not yet done: GitHub CI results (Auto-fix is watching) and export timing on the VM after deploy.

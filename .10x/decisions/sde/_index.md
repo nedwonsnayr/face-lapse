@@ -24,3 +24,5 @@ Active features: [ui-revamp](ui-revamp.md)
 - settings-dark-mode: built per ADR-011; one deviation (grid/list toggle still persists). See [settings-dark-mode](settings-dark-mode.md).
 
 - timelapse-filters: built as planned; see [timelapse-filters](timelapse-filters.md).
+
+- timelapse-prefetch: network prefetch ~3 s ahead + 8 decoded; see [timelapse-prefetch](timelapse-prefetch.md).
