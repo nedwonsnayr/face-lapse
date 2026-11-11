@@ -1,0 +1,16 @@
+# Product Manager: settings-dark-mode
+- **User:** the single owner, on a phone and laptops, often viewing at night.
+- **Scope (chosen by the user):**
+  - Theme Light/Dark/System.
+  - Default speed.
+  - Autoplay on open.
+  - Show date on the player.
+  - Default library view.
+  - Default library order.
+- **Rule:** settings are starting values. The inline controls apply to the current visit only. The theme applies live.
+- **Success:**
+  - Dark mode reads as Face Lapse (warm paper and ink inverted), with no white flash.
+  - Every text pair reaches at least 4.5:1.
+  - Defaults survive a reload.
+  - The design system artifact documents the dark theme.
+- **Out:** sync between devices, per-person settings, export restyling.

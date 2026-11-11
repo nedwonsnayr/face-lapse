@@ -1,3 +1,9 @@
+# Handoff: settings-dark-mode → SDE
+
+Read ADR-011 and decisions/{architect,senior-engineer}/settings-dark-mode.md. Tasks are in engineering-manager/settings-dark-mode.md. Once the PR is up, update the design system artifact (https://claude.ai/artifact/CVNuQWqJm81qjR2f25mMXh) with dark theme values.
+
+## Previous history
+
 # Photo date correction — PR25 ready for review
 
 PR: https://github.com/nedwonsnayr/face-lapse/pull/25. Preventive changes await merge and the existing main deployment. Locally: 50 backend / 63 browser tests, frontend build, migration retention and mobile editor review passed; the 2 new browser tests also passed after making screenshot artifacts portable to Linux CI. No background watcher or test servers remain. GitHub checks not yet confirmed complete at this handoff.
