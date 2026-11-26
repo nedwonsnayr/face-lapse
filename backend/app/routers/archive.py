@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..config import DATA_DIR, ORIGINALS_DIR, ALIGNED_DIR
+from ..config import (DATA_DIR, ORIGINALS_DIR, ALIGNED_DIR, FREE_TIER_REPO_BYTES, STORAGE_ALERT_REPO_BYTES,
+                      STORAGE_ALERT_DISK_PCT, VIDEO_RETENTION_DAYS)
 from ..database import get_db
 from ..models import Image, Profile
 from ..services import resize
@@ -129,6 +130,37 @@ def transfer(body: Transfer, db: Session = Depends(get_db), profile_id: int = De
     return {'image_ids': ids, 'count': len(ids), 'mode': body.mode}
 
 
+def _count(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def storage_summary(recorded) -> dict:
+    """Storage numbers from the nightly backup's status file, plus the warning thresholds.
+
+    Any number the file lacks or holds in a bad shape (older status files, a failed measurement)
+    is None, which the UI shows as unknown. A missing number never raises a warning.
+    """
+    recorded = recorded if isinstance(recorded, dict) else {}
+    used = recorded.get('disk_used_pct')
+    used = float(used) if isinstance(used, (int, float)) and not isinstance(used, bool) and 0 <= used <= 100 else None
+    measured_at = None
+    try:
+        parsed = datetime.fromisoformat(recorded['measured_at'])
+        if parsed.tzinfo is not None:
+            measured_at = parsed.isoformat()
+    except (KeyError, ValueError, TypeError):
+        pass
+    repo = _count(recorded.get('repo_bytes'))
+    return dict(
+        repo_bytes=repo, backup_set_bytes=_count(recorded.get('backup_set_bytes')),
+        disk_used_pct=used, disk_free_bytes=_count(recorded.get('disk_free_bytes')),
+        videos_bytes=_count(recorded.get('videos_bytes')), measured_at=measured_at,
+        free_tier_bytes=FREE_TIER_REPO_BYTES, alert_repo_bytes=STORAGE_ALERT_REPO_BYTES,
+        alert_disk_pct=STORAGE_ALERT_DISK_PCT, video_retention_days=VIDEO_RETENTION_DAYS,
+        repo_warning=repo is not None and repo >= STORAGE_ALERT_REPO_BYTES,
+        disk_warning=used is not None and used >= STORAGE_ALERT_DISK_PCT)
+
+
 @router.get('/health')
 def health(db: Session = Depends(get_db), profile_id: int = Depends(get_profile_id)):
     photos = db.query(Image).filter(Image.profile_id == profile_id).all()
@@ -138,6 +170,7 @@ def health(db: Session = Depends(get_db), profile_id: int = Depends(get_profile_
     missing_originals = sum(not Path(p.original_path).is_file() for p in photos)
     missing_aligned = sum(bool(p.aligned_path) and not Path(p.aligned_path).is_file() for p in photos)
     backup = {'last_success': None, 'last_attempt': None, 'status': 'unknown'}
+    recorded = {}
     try:
         recorded = json.loads((DATA_DIR / 'backup-status.json').read_text())
         for key in ('last_success', 'last_attempt'):
@@ -155,4 +188,4 @@ def health(db: Session = Depends(get_db), profile_id: int = Depends(get_profile_
                 pending=sum(not p.align_attempted for p in active),
                 needs_face_selection=sum(bool(p.needs_face_selection) for p in active),
                 missing_originals=missing_originals, missing_aligned=missing_aligned,
-                checked_at=datetime.now(timezone.utc).isoformat(), backup=backup)
+                checked_at=datetime.now(timezone.utc).isoformat(), backup=backup, storage=storage_summary(recorded))

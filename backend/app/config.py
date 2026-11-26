@@ -19,6 +19,30 @@ STATIC_DIR = Path(os.environ["FACE_LAPSE_STATIC_DIR"]) if os.environ.get("FACE_L
 CF_ACCESS_TEAM_DOMAIN = os.environ.get("CF_ACCESS_TEAM_DOMAIN", "").strip()  # e.g. "myteam.cloudflareaccess.com"
 CF_ACCESS_AUD = os.environ.get("CF_ACCESS_AUD", "").strip()
 
+# Storage limits. The nightly backup (scripts/backup.sh) reads the same two alert variables from .env,
+# so the warning in Archive health matches the email alert.
+FREE_TIER_REPO_BYTES = 10_000_000_000  # Backblaze B2's free 10 GB
+
+
+def _positive_number(name: str, default: float) -> float:
+    try:
+        value = float(os.environ.get(name, "").strip() or default)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+STORAGE_ALERT_REPO_BYTES = int(_positive_number("STORAGE_ALERT_REPO_BYTES", 8_000_000_000))
+STORAGE_ALERT_DISK_PCT = _positive_number("STORAGE_ALERT_DISK_PCT", 80)
+
+# Exported MP4s older than this many days are deleted (0 keeps them forever; invalid values use 7)
+try:
+    VIDEO_RETENTION_DAYS = float(os.environ.get("VIDEO_RETENTION_DAYS", "").strip() or 7)
+except ValueError:
+    VIDEO_RETENTION_DAYS = 7.0
+if VIDEO_RETENTION_DAYS < 0:
+    VIDEO_RETENTION_DAYS = 7.0
+
 # Database
 DATABASE_URL = f"sqlite:///{DATA_DIR / 'face_lapse.db'}"
 

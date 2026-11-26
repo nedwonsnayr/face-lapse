@@ -19,7 +19,8 @@ log = logging.getLogger("face-lapse.video")
 
 from ..database import get_db
 from ..models import Image
-from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION
+from ..config import VIDEOS_DIR, DEFAULT_FRAME_DURATION, VIDEO_RETENTION_DAYS
+from ..services.retention import sweep_videos
 from ..services.video import generate_video
 from ..services.filters import FilterDefinition, canonical_filter
 from ..services.ordering import library_order
@@ -34,6 +35,22 @@ router = APIRouter()
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 _MAX_JOBS = 20
+_EXPORT_NAME = re.compile(r"(person-\d+-)?timelapse_[0-9a-f]{32}\.mp4")
+
+
+def sweep_expired_videos() -> int:
+    """Delete exported videos past VIDEO_RETENTION_DAYS, unless an export is running.
+
+    The lock stays held for the whole sweep, so no export can start meanwhile. A running export
+    writes its MP4 (and renames it for non-default people) before its job names the file, so while
+    one runs we skip the sweep rather than guess which file is theirs. Hourly sweeps catch up.
+    """
+    with _jobs_lock:
+        running = [job for job in _jobs.values() if job["status"] == "running"]
+        if running:
+            log.info("Video retention sweep skipped: an export is running")
+            return 0
+        return sweep_videos(VIDEOS_DIR, VIDEO_RETENTION_DAYS)
 
 
 class GenerateBody(BaseModel):
@@ -262,6 +279,8 @@ def get_video_by_name(filename: str, profile_id: int = Depends(get_profile_id)):
         raise HTTPException(status_code=404, detail="Video not found")
     video_path = (VIDEOS_DIR / filename).resolve()
     if video_path.parent != VIDEOS_DIR.resolve() or not video_path.is_file():
+        if _EXPORT_NAME.fullmatch(filename):
+            raise HTTPException(status_code=404, detail="This video has expired. Download it again to regenerate.")
         raise HTTPException(status_code=404, detail="Video not found")
 
     download_name = f"face-lapse-{date.today().strftime('%m-%d-%Y')}.mp4"

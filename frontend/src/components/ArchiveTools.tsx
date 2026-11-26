@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImageRecord } from "../api";
-import { ArchiveHealth, archiveRequest, TrashPhoto } from "../archiveApi";
+import { ArchiveHealth, ArchiveStorage, archiveRequest, TrashPhoto } from "../archiveApi";
 import { useProfileApi } from "../ProfileContext";
+import { formatBytes } from "../utils/formatBytes";
 import ResilientImage from "./ResilientImage";
 import { Button } from "./ui/Button";
 import forms from "./ui/forms.module.css";
@@ -76,6 +77,27 @@ function Trash({ revision, onRefresh }: { revision: ImageRecord[]; onRefresh: ()
   </>;
 }
 
+function Storage({ storage }: { storage: ArchiveStorage }) {
+  const { repo_bytes: repo, disk_used_pct: disk, free_tier_bytes: tier } = storage;
+  const retention = storage.video_retention_days;
+  const rows = [
+    { key: "backups", warn: storage.repo_warning, text: repo === null ? "Backups: unknown"
+      : `Backups: ${(repo / 1e9).toFixed(1)} of ${Number((tier / 1e9).toFixed(1))} GB free tier${storage.repo_warning ? (repo >= tier ? " · over the free tier" : " · close to the free tier limit") : ""}` },
+    { key: "disk", warn: storage.disk_warning, text: disk === null ? "Server disk: unknown"
+      : `Server disk: ${Math.round(disk)}% used${storage.disk_free_bytes === null ? "" : ` · ${formatBytes(storage.disk_free_bytes)} free`}${storage.disk_warning ? " · running low" : ""}` },
+    { key: "videos", warn: false, text: storage.videos_bytes === null ? "Exported videos: unknown"
+      : `Exported videos: ${formatBytes(storage.videos_bytes)}${retention > 0 ? ` · deleted after ${retention} ${retention === 1 ? "day" : "days"}` : ""}` },
+  ];
+  return <>
+    <ul className={s.storage} data-testid="storage-usage">
+      {rows.map(row => <li key={row.key} data-testid={`storage-${row.key}`} className={row.warn ? s.storageWarn : undefined}>{row.text}</li>)}
+    </ul>
+    <p className={s.meta}>{storage.measured_at
+      ? `Storage measured by the backup on ${new Date(storage.measured_at).toLocaleString()}.`
+      : "Storage is measured by the nightly backup. No numbers have been recorded yet."}</p>
+  </>;
+}
+
 function Health() {
   const { profileId } = useProfileApi();
   const [health, setHealth] = useState<ArchiveHealth | null>(null);
@@ -103,6 +125,7 @@ function Health() {
         {health.backup.status === "failed" && " The latest backup attempt failed."}
         {health.backup.status === "running" && " A backup attempt was started; completion has not been recorded."}
       </p>
+      <Storage storage={health.storage} />
       <p className={s.meta}>Files checked {new Date(health.checked_at).toLocaleString()}. Includes photos in Trash. This checks file presence, not a full backup restore.</p>
     </>}
   </>;

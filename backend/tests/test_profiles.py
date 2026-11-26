@@ -317,6 +317,44 @@ class ProfileTests(unittest.TestCase):
         status.write_text('bad json')
         self.assertEqual(self.client.get('/api/archive/health').json()['backup']['status'], 'unknown')
 
+    def test_health_exposes_storage_numbers_and_unknown_for_old_status_files(self):
+        import json
+        status = self.root / 'backup-status.json'
+        status.unlink(missing_ok=True)
+        empty = self.client.get('/api/archive/health').json()['storage']
+        self.assertTrue(all(empty[key] is None for key in
+                            ('repo_bytes', 'backup_set_bytes', 'disk_used_pct', 'disk_free_bytes', 'videos_bytes', 'measured_at')))
+        self.assertEqual((empty['repo_warning'], empty['disk_warning']), (False, False))
+        self.assertEqual((empty['free_tier_bytes'], empty['alert_repo_bytes'], empty['alert_disk_pct']),
+                         (10_000_000_000, 8_000_000_000, 80))
+        status.write_text(json.dumps({'status': 'success', 'last_success': '2026-11-01T03:00:00+00:00'}))  # pre-storage file
+        self.assertIsNone(self.client.get('/api/archive/health').json()['storage']['repo_bytes'])
+        status.write_text(json.dumps({'status': 'success', 'repo_bytes': 4240000000, 'backup_set_bytes': 4250000000,
+                                      'disk_used_pct': 19.2, 'disk_free_bytes': 78000000000, 'videos_bytes': 770000000,
+                                      'measured_at': '2026-11-26T03:10:00+00:00', 'RESTIC_PASSWORD': 'do not expose'}))
+        result = self.client.get('/api/archive/health').json()
+        self.assertEqual(result['storage']['repo_bytes'], 4240000000)
+        self.assertEqual(result['storage']['disk_used_pct'], 19.2)
+        self.assertEqual(result['storage']['measured_at'], '2026-11-26T03:10:00+00:00')
+        self.assertEqual((result['storage']['repo_warning'], result['storage']['disk_warning']), (False, False))
+        self.assertNotIn('do not expose', json.dumps(result))
+        status.write_text(json.dumps({'repo_bytes': 8000000000, 'disk_used_pct': 80, 'videos_bytes': -5, 'disk_free_bytes': 'x',
+                                      'measured_at': 'not a date'}))
+        result = self.client.get('/api/archive/health').json()['storage']
+        self.assertEqual((result['repo_warning'], result['disk_warning']), (True, True))
+        self.assertEqual((result['videos_bytes'], result['disk_free_bytes'], result['measured_at']), (None, None, None))
+        status.write_text('[1]')
+        self.assertIsNone(self.client.get('/api/archive/health').json()['storage']['repo_bytes'])
+
+    def test_expired_video_download_says_to_regenerate(self):
+        name = 'timelapse_' + 'a' * 32 + '.mp4'
+        response = self.client.get(f'/api/video/{name}')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()['detail'], 'This video has expired. Download it again to regenerate.')
+        self.assertEqual(self.client.get('/api/video/nonsense.mp4').json()['detail'], 'Video not found')
+        (self.root / 'videos' / name).write_bytes(b'video')
+        self.assertEqual(self.client.get(f'/api/video/{name}').status_code, 200)
+
     def test_export_sampling_uses_calendar_buckets_and_date_range(self):
         from datetime import datetime
         from backend.app.models import Image
