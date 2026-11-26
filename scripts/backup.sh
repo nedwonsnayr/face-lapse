@@ -10,6 +10,19 @@ set -a; source "$APP_DIR/.env"; set +a
 
 ping() { [ -n "${HEALTHCHECK_URL:-}" ] && curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL$1" >/dev/null || true; }
 status() { python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" "$1" || echo "Could not record backup status" >&2; }
+# Storage numbers and the storage alert must never fail the backup: log and carry on.
+measure() { python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" measure "$DATA" || echo "Could not measure storage" >&2; }
+storage_ping() {
+  [ -n "${STORAGE_HEALTHCHECK_URL:-}" ] || return 0
+  local verdict suffix
+  verdict=$(python3 "$APP_DIR/scripts/backup-status.py" "$DATA/backup-status.json" alert 2>/dev/null) || verdict=unknown
+  case "$verdict" in
+    ok) suffix="" ;;
+    fail) suffix="/fail" ;;
+    *) echo "Storage numbers unknown; not pinging the storage check" >&2; return 0 ;;
+  esac
+  curl -fsS -m 10 --retry 3 "$STORAGE_HEALTHCHECK_URL$suffix" >/dev/null || echo "Could not ping the storage check" >&2
+}
 trap 'status failed; ping /fail' ERR
 status running
 ping /start
@@ -33,5 +46,7 @@ restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
 restic check --read-data-subset=5%
 
 status success
+measure
+storage_ping
 ping ""
 echo "$(date -Is) backup ok"
