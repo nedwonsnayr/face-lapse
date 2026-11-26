@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager
@@ -11,6 +12,7 @@ from .database import engine, Base
 from .config import ensure_directories, DATA_DIR, STATIC_DIR, CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD
 from .access import CloudflareAccessMiddleware
 from .routers import images, video, profiles, archive, filters
+from .services.retention import retention_loop
 
 # ── Logging setup ────────────────────────────────────────────────
 logging.basicConfig(
@@ -76,7 +78,10 @@ async def lifespan(app: FastAPI):
     _ensure_tables()
     _run_migrations()
     log.info("Started — data dir: %s", DATA_DIR)
+    # Sweeps once now, then hourly: exported videos are regenerated on demand.
+    sweeper = asyncio.create_task(retention_loop(video.sweep_expired_videos))
     yield
+    sweeper.cancel()
     log.info("Shutting down")
 
 
