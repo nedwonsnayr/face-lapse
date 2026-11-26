@@ -142,24 +142,24 @@ What to add:
 - **Do you plan to import more people's archives, or take daily selfies?** Either one moves the B2 date by years.
 - **How long should exported videos be kept?** 7 days is proposed.
 
-## Step 1: Record storage usage in the nightly backup
+## Step 1: Record storage usage in the nightly backup (done)
 
 - Extend `scripts/backup.sh` and `scripts/backup-status.py` to write `repo_bytes`, `backup_set_bytes`, `disk_used_pct`, `disk_free_bytes` and `videos_bytes` to `data/backup-status.json`.
 - `restic stats` only reads the index, which is a free B2 call class.
 - Keep writing the status atomically, and never record credentials.
 
-## Step 2: Email alert at 8 GB in B2 or 80% disk
+## Step 2: Email alert at 8 GB in B2 or 80% disk (done)
 
 - The owner creates the healthchecks.io check `face-lapse-storage` and adds `STORAGE_HEALTHCHECK_URL` to the server `.env`.
 - `backup.sh` pings it, or pings `/fail` when a threshold is crossed. Thresholds are environment variables with defaults of 8 GB and 80%.
 
-## Step 3: Show storage in Archive health
+## Step 3: Show storage in Archive health (done)
 
 - Read the new fields from `backup-status.json`, and show used versus free-tier space for B2 and the disk percentage.
 - Show a warning style at or above the thresholds. Show "unknown" until the first run records the numbers.
 - Add an e2e test using a fixture status file.
 
-## Step 4: Delete exported videos after 7 days
+## Step 4: Delete exported videos after 7 days (done)
 
 - Add a startup and hourly sweep in the backend that removes `data/videos/*.mp4` files older than `VIDEO_RETENTION_DAYS` (default 7), skipping any video a running job still owns.
 - Add a backend test.

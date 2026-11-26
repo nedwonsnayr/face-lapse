@@ -59,6 +59,8 @@ phone / laptop ──HTTPS──▶ Cloudflare Access (email code)
 ### healthchecks.io (backup alerts, optional but recommended)
 Create a free check with period **1 day** and grace **2 hours**, then copy its ping URL. → `HEALTHCHECK_URL`
 
+Optionally create a second check, `face-lapse-storage`, the same way (period **1 day**, grace **2 hours**), and copy its ping URL. → `STORAGE_HEALTHCHECK_URL`. See [Storage limits](#storage-limits).
+
 ---
 
 ## 2. First deploy (from the laptop)
@@ -176,16 +178,57 @@ Upload limit: Cloudflare caps a single request at 100 MB. The app sends uploads 
 - **Cloudflare error 1033 / "tunnel not found":** the `cloudflared` container is down or `TUNNEL_TOKEN` is wrong. Check `docker compose logs cloudflared`.
 - **Error 502:** the tunnel is up but the app isn't. Check `docker compose ps` and `docker compose logs app`.
 - **403 "Invalid Cloudflare Access token":** `CF_ACCESS_AUD` or `CF_ACCESS_TEAM_DOMAIN` in `.env` doesn't match the Access application.
-- **Slow Download Video:** generation runs as a background job. The UI shows preparing-photo counts, then encoding. Check app logs for `Export rendered`, `Export encoding finished`, and `Video ready` durations. Identical requests reuse a running/completed export while retained in the process-local 20-job registry; restart or eviction requires regeneration. A different export while one runs returns a retry message. Keep one application worker; the job registry is not shared across processes. Existing MP4s remain on disk with their original download URLs.
+- **Slow Download Video:** generation runs as a background job. The UI shows preparing-photo counts, then encoding. Check app logs for `Export rendered`, `Export encoding finished`, and `Video ready` durations. Identical requests reuse a running/completed export while retained in the process-local 20-job registry; restart or eviction requires regeneration. A different export while one runs returns a retry message. Keep one application worker; the job registry is not shared across processes. Exported MP4s are deleted after `VIDEO_RETENTION_DAYS` days (see [Storage limits](#storage-limits)); an old download link then answers "This video has expired. Download it again to regenerate."
 - **healthchecks.io email "backup is down":** check `/var/log/face-lapse-backup.log` and test the B2 keys with `restic snapshots`.
 - **Oracle reclaimed or stopped the VM:** start it from the console. If it's gone, follow section 4.
 - **Rotate the tunnel token:** Zero Trust → Tunnels → face-lapse → *Refresh token*, update `.env`, then `docker compose up -d`.
+
+## Storage limits
+
+Two limits matter: Backblaze B2's free 10 GB (the backups) and the VM's 100 GB boot disk. The nightly backup measures both, the app shows them in **Archive health**, and an optional healthchecks.io check emails you before either is reached. Background and numbers: `.10x/specs/2026-11-26-storage-limits-plan.md`.
+
+### What the nightly backup records
+
+After a successful run, `scripts/backup.sh` calls `scripts/backup-status.py … measure` and adds these keys to `data/backup-status.json`. Existing keys are unchanged, and the file is still written atomically and holds no credentials. The numbers survive later `running`/`failed` updates, so `measured_at` says how old they are. A number that could not be measured is `null` (never a stale value) and the error goes to the backup log. A failed measurement never fails the backup.
+
+| Key | Meaning | How it's measured |
+|---|---|---|
+| `repo_bytes` | What B2 stores (de-duplicated, encrypted packs). The number to compare with the 10 GB free tier | `restic stats --mode raw-data --json`, `total_size`. Reads the index only |
+| `backup_set_bytes` | Size of the files in the latest snapshot (originals, aligned frames, DB copy) | `restic stats latest --json`, restore-size `total_size`. Reads the snapshot's tree metadata, which restic caches on the server |
+| `disk_used_pct` | Share of the disk holding `data/` that is used. Matches the `Use%` column of `df`, but with one decimal | Python `shutil.disk_usage`: used / (used + available) |
+| `disk_free_bytes` | Bytes available to the app on that disk | Same call |
+| `videos_bytes` | Size of `data/videos` (exported MP4s, not backed up) | Sum of file sizes, symlinks not followed |
+| `measured_at` | When the numbers were taken, ISO 8601 UTC | |
+
+Compare by hand with `restic stats --mode raw-data` and `df -h ~/face-lapse/data`.
+
+### Storage alert
+
+Set `STORAGE_HEALTHCHECK_URL` in the server `.env` to the ping URL of the `face-lapse-storage` check. After measuring, the backup pings it while storage is fine and pings `<URL>/fail` (an email) when either limit is reached:
+
+| Variable | Default | Alerts when |
+|---|---|---|
+| `STORAGE_ALERT_REPO_BYTES` | `8000000000` (80% of the free tier) | `repo_bytes` is at or above it |
+| `STORAGE_ALERT_DISK_PCT` | `80` | `disk_used_pct` is at or above it |
+
+- With `STORAGE_HEALTHCHECK_URL` unset, nothing is pinged. A failed ping is logged and never fails the backup.
+- If either number could not be measured and neither limit is reached, nothing is pinged, so a broken measurement ends in healthchecks.io's missed-ping email instead of a false all-clear.
+- The app container reads the same two threshold variables from `.env` (restart it with `docker compose up -d` after changing them), so Archive health warns at the same point as the email.
+- To test: set `STORAGE_ALERT_REPO_BYTES=1` in `.env`, run `sudo ~/face-lapse/scripts/backup.sh`, and expect the email. Remove the line and run it again to clear the alert.
+
+### Archive health
+
+**Archive → Archive health → Check archive now** shows `Backups: 4.2 of 10 GB free tier`, `Server disk: 19% used` and `Exported videos: 0.8 GB`. A line turns into a warning at the alert thresholds above. It shows *unknown* until a backup run has recorded the numbers (status files from older versions lack them). Check it before importing another person's archive: each ~1,000-photo archive needs about 3.9 GB in B2 and 4.2 GB on disk.
+
+### Exported video retention
+
+Exported MP4s (`data/videos/*.mp4`) are never backed up and are regenerated on demand, so the app deletes them after `VIDEO_RETENTION_DAYS` days (default `7`, by file modification time; `0` keeps them forever). The sweep runs when the app starts and then every hour, logs `Deleted N expired exported video(s)`, and only touches regular `.mp4` files directly inside `data/videos` (symlinks and other files are left alone). It skips a sweep while a video export is running. Downloading a deleted video returns "This video has expired. Download it again to regenerate."; exporting again creates a new file. Restart the app after changing the variable.
 
 ## Archive experience rollout (migration 009)
 
 Migration 009 adds nullable `images.deleted_at` and a `(profile_id, deleted_at)` index; it does not move or rewrite photos. Trash is retained indefinitely and included in nightly backups. Only the explicit permanent-delete action removes original/aligned files. Copying between people uses independent UUID-named files, increasing disk usage accordingly.
 
-The existing root cron invokes the checked-out `scripts/backup.sh`. It now records `data/backup-status.json` atomically via `scripts/backup-status.py` (Python 3, already installed on the host). The file contains only attempt/success times and state, is readable by the app container, and never contains credentials. Success is recorded only after backup, retention and the integrity check all complete. A failure preserves the previous success timestamp. An interrupted run remains an unfinished attempt; the UI reports this without claiming completion. The UI reports unknown until the first recorded attempt and overdue after 36 hours without success. Existing healthchecks.io alerts remain in place.
+The existing root cron invokes the checked-out `scripts/backup.sh`. It now records `data/backup-status.json` atomically via `scripts/backup-status.py` (Python 3, already installed on the host). The file contains only attempt/success times, state and the storage byte counts described under [Storage limits](#storage-limits), is readable by the app container, and never contains credentials. Success is recorded only after backup, retention and the integrity check all complete. A failure preserves the previous success timestamp. An interrupted run remains an unfinished attempt; the UI reports this without claiming completion. The UI reports unknown until the first recorded attempt and overdue after 36 hours without success. Existing healthchecks.io alerts remain in place.
 
 Roll forward for application issues where possible. Old code ignores `deleted_at` and would show trashed photos again; it also uses hard deletion. Do not drop the column or restore an older database over new uploads as an application rollback. Keep a pre-deploy database backup and the current originals/aligned files. Rollback of frontend-only issues should retain the new backend lifecycle semantics.
 
